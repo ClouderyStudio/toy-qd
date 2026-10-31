@@ -113,6 +113,12 @@
     connected: () => !!ws && ws.readyState === 1,
     identity: () => ident || loadIdent(),
 
+    /** 当前页面是否配好了联机服务（没配就不该把「多人联机」摆给玩家看）。 */
+    configured() {
+      if (BR.config.wsUrl) return true;
+      return location.protocol === 'file:' || isLocalHost();
+    },
+
     /** 建立连接并完成身份握手；已连上则直接复用。 */
     connect(name, openId) {
       lastHello = { name: name || '', openId: openId || null };

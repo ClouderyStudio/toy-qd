@@ -14,10 +14,13 @@
       g.text('BUCKSHOT ROULETTE', 160, 26, { align: 'center', size: 14, col: '#c02020' });
       g.text('恶 魔 轮 盘', 160, 46, { align: 'center', size: 9, col: '#d8d4c0' });
       const b = (label, y, fn) => BR.button(label, 120, y, 80, 14, fn, { size: 7 });
+      // 联机地址没配时（纯静态发布、后端还没上线）不摆这个入口，免得玩家点了只看到报错。
+      const online = BR.net.configured();
       b('开始游戏', 84, () => BR.go('bathroom'));
-      b('多人联机', 102, () => BR.overlay.lobby());
-      b('排行榜', 120, () => BR.overlay.rank());
-      b('规则', 138, () => BR.overlay.rules());
+      let y = 102;
+      if (online) { b('多人联机', y, () => BR.overlay.lobby()); y += 18; }
+      b('排行榜', y, () => BR.overlay.rank());
+      b('规则', y + 18, () => BR.overlay.rules());
       g.text('非官方同人复刻 · 原作 Mike Klubnika', 160, 168, { align: 'center', size: 5, col: '#5a5850' });
     }
   };
