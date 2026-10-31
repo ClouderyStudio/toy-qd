@@ -6,6 +6,9 @@ const { WebSocketServer } = require('ws');
 const rooms = require('./rooms.js');
 
 const PORT = process.env.PORT || 8080;
+// 生产只监听回环：公网入口统一走 OpenResty（它反代到 127.0.0.1:<PORT>）。
+// 绑 0.0.0.0 会让 IP:PORT 直接对外，绕过 CDN 与来源校验，纯属多余暴露面。
+const BIND = process.env.BIND || '0.0.0.0';
 const ROOT = path.resolve(__dirname, '..');
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8' };
 const MAX_MSG = 2048;        // 单条消息最大字节
@@ -71,8 +74,8 @@ const keepalive = setInterval(() => {
 }, PING_MS);
 keepalive.unref();
 
-server.listen(PORT, () => {
-  console.log(`[Server] 恶魔轮盘已启动 http://localhost:${PORT}  (WebSocket 同端口)`);
+server.listen(PORT, BIND, () => {
+  console.log(`[Server] 恶魔轮盘已启动 http://${BIND}:${PORT}  (WebSocket 同端口)`);
   console.log(`[Server] 联机 API：${process.env.TOY_API_BASE ? process.env.TOY_API_BASE : '未配置（降级为房间号模式）'}`);
   console.log(`[Server] 允许的页面来源：${ALLOWED.length ? ALLOWED.join(', ') : '不限'}`);
 });
