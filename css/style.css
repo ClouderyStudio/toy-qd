@@ -1,0 +1,67 @@
+/* 像素风整体样式：全屏黑底，画布居中，浮层在 canvas 之上 */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 100%; height: 100%; background: #000; overflow: hidden; }
+body { font-family: "Courier New", "Microsoft YaHei", monospace; color: #d8d4c0; }
+#screen { display: block; touch-action: none; image-rendering: pixelated; }
+
+#overlay {
+  display: none;
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.7);
+  align-items: center; justify-content: center;
+  z-index: 10;
+}
+.ov-card {
+  background: #14141a;
+  border: 2px solid #3a3a44;
+  padding: 18px 22px;
+  max-width: 420px; width: 92%;
+  box-shadow: 0 0 0 2px #000, 6px 6px 0 #000;
+}
+.ov-card.wide { max-width: 480px; }
+.ov-card h2 { color: #e04040; font-size: 16px; margin-bottom: 4px; letter-spacing: 1px; }
+.ov-sub { color: #888; font-size: 12px; margin-bottom: 12px; }
+.ov-card p { font-size: 12px; line-height: 1.7; margin-bottom: 8px; color: #c8c4b0; }
+.ov-warn { color: #c08040; font-size: 11px; }
+.ov-msg { color: #e08080; min-height: 16px; font-size: 12px; }
+.ov-mine { color: #ffe080; }
+
+.ov-card input {
+  width: 100%;
+  background: #0a0a0e;
+  border: 2px solid #3a3a44;
+  color: #e8e4d0;
+  padding: 8px 10px;
+  font-family: inherit; font-size: 14px;
+  margin-bottom: 12px;
+  outline: none;
+}
+.ov-card input:focus { border-color: #c04040; }
+.ov-card input.ov-code { width: 120px; }
+
+.ov-row { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; }
+.ov-row input { margin: 0; }
+
+.ov-actions { display: flex; gap: 10px; justify-content: flex-end; }
+
+.pix-btn {
+  background: #1a1a16;
+  border: 2px solid #000;
+  color: #d8d4c0;
+  padding: 7px 16px;
+  font-family: inherit; font-size: 13px;
+  cursor: pointer;
+  box-shadow: inset -2px -2px 0 #0a0a08, inset 2px 2px 0 #2a2a25;
+}
+.pix-btn:hover { background: #2a2a25; color: #fff; }
+.pix-btn:active { box-shadow: inset 2px 2px 0 #0a0a08; transform: translate(1px, 1px); }
+.pix-btn.ghost { background: transparent; box-shadow: none; border-color: #3a3a44; }
+.pix-btn.tab { padding: 5px 10px; font-size: 12px; margin-right: 6px; }
+.pix-btn.tab.active { background: #5a1010; color: #fff; }
+
+.ov-card table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 13px; }
+.ov-card td { padding: 5px 8px; border-bottom: 1px solid #2a2a30; }
+.ov-card td:nth-child(1) { width: 40px; color: #ffe080; }
+.ov-card td:nth-child(3) { text-align: right; color: #80c080; }
+
+.ov-rules p { font-size: 12px; }
