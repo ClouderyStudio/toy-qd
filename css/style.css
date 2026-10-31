@@ -17,6 +17,11 @@ body { font-family: "Courier New", "Microsoft YaHei", monospace; color: #d8d4c0;
   padding: 18px 22px;
   max-width: 420px; width: 92%;
   box-shadow: 0 0 0 2px #000, 6px 6px 0 #000;
+  /* 手机竖屏上长面板（开发者/规则/排行榜）不能撑出屏幕：限高 + 内部滚动 */
+  max-height: 92vh;
+  max-height: calc(100dvh - 16px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 .ov-card.wide { max-width: 480px; }
 .ov-card h2 { color: #e04040; font-size: 16px; margin-bottom: 4px; letter-spacing: 1px; }
@@ -80,4 +85,13 @@ body { font-family: "Courier New", "Microsoft YaHei", monospace; color: #d8d4c0;
 .ov-room-names { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ov-room-count { color: #80c080; }
 .ov-off { color: #e08080; font-size: 11px; }
+
+/* 手机端收紧：窄屏减内边距，输入框 ≥16px 防 iOS 聚焦自动放大把面板顶出屏 */
+@media (max-width: 520px) {
+  .ov-card { padding: 12px 14px; }
+  .ov-card h2 { font-size: 14px; }
+  .ov-card input, .ov-card select { font-size: 16px; padding: 7px 9px; }
+  .ov-card input.ov-code { width: 110px; }
+  .pix-btn { padding: 7px 12px; font-size: 12px; }
+}
 
