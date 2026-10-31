@@ -29,6 +29,11 @@
         return;
       }
       if (this.latest) { this.v = clone(this.latest); this.latest = null; this.reveal = null; }
+      // 队列跑空即把枪收回桌面。朝自己开空弹会保留回合，引擎不会再发 turn 事件，
+      // 若停在这里，枪会一直画成「枪口对着自己」，而绘制层只在 gun==='table' 时
+      // 注册「拿起霰弹枪」热区 —— 玩家就再也点不动，界面却仍旧显示「你的回合」。
+      this.gun = 'table';
+      this.aim = -1;
     }
     removeItem(seat, key) {
       const it = this.v.seats[seat].items, j = it.indexOf(key);
