@@ -1,0 +1,2 @@
+# 部署脚本会被传到 Linux 服务器直接执行，CRLF 会让 bash 报 $'\r': command not found
+*.sh text eol=lf
