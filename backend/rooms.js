@@ -25,6 +25,7 @@ const HEARTBEAT_MS = 15 * 1000;      // 房间心跳（API 侧 TTL 120 秒）
 const POLL_MS = 1500;                // 快速匹配轮询间隔
 const TURN_TIMEOUT_MS = Math.max(10, Number(process.env.TURN_TIMEOUT_SECONDS) || 40) * 1000;
 const DEBUG_TOOLS = !!process.env.TOY_DEBUG;   // 调试通道总开关；不开时 debug-* 消息一律忽略
+const DEBUG_PASSWORD = process.env.TOY_DEBUG_PASSWORD || '';   // 不设密码 = 调试通道保持禁用
 
 const rooms = new Map();       // code -> room
 const seats = new Map();       // playerId -> { room, seat }（重连找回座位）
@@ -315,10 +316,24 @@ function action(ws, a) {
   broadcastEvents(room, events);
 }
 
-// ── 开发者通道（TOY_DEBUG=1 才生效）：随机收尾与加钱，用来测排行榜 / 结算 ──
+// ── 开发者通道（TOY_DEBUG=1 且 TOY_DEBUG_PASSWORD 已设才生效）──────────────
+// 每条 debug 消息都要带密码，服务端 timing-safe 比对；错密码随机延迟，拖垮爆破。
 
-function debugEnd(ws) {
-  if (!DEBUG_TOOLS) return;
+let debugFailAt = 0;
+
+function debugCheck(ws, password) {
+  if (!DEBUG_TOOLS || !DEBUG_PASSWORD) return false;
+  const sha = (s) => crypto.createHash('sha256').update(String(s || '')).digest();
+  if (crypto.timingSafeEqual(sha(password), sha(DEBUG_PASSWORD))) return true;
+  const wait = 300 + Math.floor(Math.random() * 500);
+  const left = Math.max(0, wait - (Date.now() - debugFailAt));
+  debugFailAt = Date.now() + left;
+  setTimeout(() => send(ws, { type: 'error', message: '调试密码不对' }), left + Math.floor(Math.random() * 400));
+  return false;
+}
+
+function debugEnd(ws, password) {
+  if (!debugCheck(ws, password)) return;
   const room = ws.room;
   const game = room && room.game;
   if (!game || game.phase === 'over') return;
@@ -331,8 +346,8 @@ function debugEnd(ws) {
   broadcastEvents(room, game.flush());
 }
 
-function debugMoney(ws, amount) {
-  if (!DEBUG_TOOLS) return;
+function debugMoney(ws, amount, password) {
+  if (!debugCheck(ws, password)) return;
   const room = ws.room;
   if (!room || !room.game) return;
   const seat = seatOf(room, ws);
@@ -582,8 +597,8 @@ function handle(ws, msg) {
     case 'join': return join(ws, msg.code);
     case 'start': return start(ws);
     case 'action': return action(ws, msg.action);
-    case 'debug-end': return debugEnd(ws);
-    case 'debug-money': return debugMoney(ws, msg.amount);
+    case 'debug-end': return debugEnd(ws, msg.password);
+    case 'debug-money': return debugMoney(ws, msg.amount, msg.password);
     case 'leave': return leave(ws);
     case 'lobby': return lobby(ws);
     case 'match': return match(ws);

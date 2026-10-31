@@ -299,10 +299,13 @@
       p.querySelector('#dv-back').onclick = () => BR.overlay.hide();
     },
 
-    // 对局内开发者快捷操作（DEV 按钮）
+    // 对局内开发者快捷操作（DEV 按钮；联机模式每条请求带密码，服务端校验）
     devGame() {
       const S = BR.scenes.table;
+      let saved = '';
+      try { saved = sessionStorage.getItem('br_dev_pwd') || ''; } catch (e) { /* 忽略 */ }
       const p = panel(`<div class="ov-card"><h2>DEV · 对局操作</h2>
+        <div style="text-align:center"><input id="dg-pwd" size="12" placeholder="调试密码" value="${esc(saved)}"></div>
         <div class="ov-actions">
           <button id="dg-end" class="pix-btn">一键随机结束</button>
         </div>
@@ -313,11 +316,16 @@
         <p class="ov-sub" id="dg-note"></p>
         <button id="dg-back" class="pix-btn ghost">关闭</button>
       </div>`);
-      p.querySelector('#dg-end').onclick = () => { S.devEnd(); BR.overlay.hide(); };
+      const pwd = () => {
+        const v = p.querySelector('#dg-pwd').value;
+        try { sessionStorage.setItem('br_dev_pwd', v); } catch (e) { /* 忽略 */ }
+        return v;
+      };
+      p.querySelector('#dg-end').onclick = () => { S.devEnd(pwd()); BR.overlay.hide(); };
       p.querySelector('#dg-add').onclick = () => {
         const n = Math.round(+p.querySelector('#dg-money').value || 0);
-        S.devMoney(n);
-        p.querySelector('#dg-note').textContent = `已请求 ${n >= 0 ? '+' : ''}${n}`;
+        S.devMoney(n, pwd());
+        p.querySelector('#dg-note').textContent = `已请求 ${n >= 0 ? '+' : ''}${n}（密码不对会被服务端拒绝）`;
       };
       p.querySelector('#dg-back').onclick = () => BR.overlay.hide();
     },

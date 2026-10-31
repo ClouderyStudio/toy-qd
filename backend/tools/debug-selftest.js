@@ -1,6 +1,6 @@
-/* 开发者通道自测：debug-money 加钱后视图同步，debug-end 随机收尾进入结算
+/* 开发者通道自测：密码错被拒、密码对才放行（加钱同步 / 随机收尾）
  *
- *   TOY_DEBUG=1 TURN_TIMEOUT_SECONDS=30 PORT=8094 node server.js
+ *   TOY_DEBUG=1 TOY_DEBUG_PASSWORD=test-pwd PORT=8094 node server.js
  *   node tools/debug-selftest.js ws://127.0.0.1:8094
  */
 const WebSocket = require('ws');
@@ -39,12 +39,18 @@ class Client {
       });
     });
   }
-  wait(match, what) {
+  wait(match, what, ms) {
     const idx = this.inbox.findIndex(match);
     if (idx >= 0) return Promise.resolve(this.inbox.splice(idx, 1)[0]);
     return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error(`${this.label} 等不到 ${what || '消息'}`)), TIMEOUT);
-      this.waiters.push({ match, resolve, timer });
+      const entry = { match, resolve, timer: null };
+      entry.timer = setTimeout(() => {
+        // 超时要把等待器摘掉，否则它会吃掉之后到达的同类消息
+        const i = this.waiters.indexOf(entry);
+        if (i >= 0) this.waiters.splice(i, 1);
+        reject(new Error(`${this.label} 等不到 ${what || '消息'}`));
+      }, ms || TIMEOUT);
+      this.waiters.push(entry);
     });
   }
   send(msg) { this.ws.send(JSON.stringify(msg)); }
@@ -74,14 +80,26 @@ const uniq = () => Math.random().toString(36).slice(2, 10);
   const startA = await a.wait((m) => m.type === 'start', 'start');
   await b.wait((m) => m.type === 'start', 'start');
 
+  // 密码错误：被拒绝并收到错误提示
+  a.send({ type: 'debug-money', amount: 99999, password: 'wrong-pwd' });
+  const denied = await a.wait((m) => m.type === 'error' && /调试密码/.test(m.message), '错误提示');
+  assert(!!denied, '密码错误被服务端拒绝（调试密码不对）');
+
+  // 密码错误时没有加钱帧（1.5 秒内不出现 money>0 的视图同步；等待器 1.5s 就摘除，不吃后续消息）
+  const leaked = await Promise.race([
+    a.wait((m) => m.type === 'events' && m.view.seats[0].money > 0, '加钱帧', 1500).catch(() => 'none'),
+    new Promise((r) => setTimeout(() => r('none'), 1600))
+  ]);
+  assert(leaked === 'none', '错误密码没有产生加钱效果');
+
   // 加钱：A 加 12345，双方视图都同步
-  a.send({ type: 'debug-money', amount: 12345 });
+  a.send({ type: 'debug-money', amount: 12345, password: 'test-pwd' });
   const moneyA = await a.wait((m) => m.type === 'events' && m.view.seats[0].money === 12345, 'A 视图加钱');
   await b.wait((m) => m.type === 'events' && m.view.seats[0].money === 12345, 'B 视图加钱');
   assert(!!moneyA, '加钱后双方视图同步（seat0 = 12345）');
 
   // 随机收尾：over 事件 + phase=over + 有 winner
-  a.send({ type: 'debug-end' });
+  a.send({ type: 'debug-end', password: 'test-pwd' });
   const overA = await a.wait((m) => m.type === 'events' && m.view.phase === 'over', 'A over');
   await b.wait((m) => m.type === 'events' && m.view.phase === 'over', 'B over');
   assert(overA.view.result && typeof overA.view.result.winner === 'number', '随机收尾给出 winner', JSON.stringify(overA.view.result));
