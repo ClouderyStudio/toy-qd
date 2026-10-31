@@ -7,3 +7,6 @@ node_modules/
 backend/test-*.js
 .workbuddy/
 dist/
+# 服务器 .env 里有 Toy:ServerKey，只在部署机存在，绝不入库（模板是 backend/.env.example）
+.env
+backend/.env

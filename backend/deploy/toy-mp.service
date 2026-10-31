@@ -1,0 +1,33 @@
+[Unit]
+Description=恶魔轮盘联机后端 (Node WebSocket)
+# 只依赖网络就绪；它自己不管数据库，ClouderyApi 抖了也能靠降级活着。
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# 建议单独建系统用户：adduser --system --group --no-create-home toy
+User=toy
+Group=toy
+WorkingDirectory=/www/toy-mp/backend
+EnvironmentFile=/www/toy-mp/backend/.env
+ExecStart=/usr/bin/node server.js
+Restart=always
+RestartSec=3
+
+# 房间状态全在进程内存里，重启等于所有对局清零。给足优雅退出时间：
+# server.js 里 server.close 后现有连接还能收尾，别一 SIGTERM 就硬杀。
+KillSignal=SIGTERM
+TimeoutStopSec=15
+
+# 加固：进程只读系统目录，可写 /tmp 与自己的日志
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

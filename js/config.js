@@ -7,8 +7,11 @@
  *
  * 留空且页面不在本机时，客户端会直接报「联机服务器未配置」，而不是拿 Toy 的
  * 静态域名去连 WebSocket（那只会得到一个看不懂的连接失败）。
+ *
+ * 线上值不要手改这一行：用构建脚本注入，源码保持留空，本地联调不受影响。
+ *   BR_WS_URL=wss://api.cloudery.cn/toy-mp bash tools/build-static.sh
  */
 window.BR = window.BR || {};
 window.BR.config = {
-  wsUrl: ''   // 例：'wss://game.cldery.com'
+  wsUrl: ''   // 构建时由 BR_WS_URL 注入，例：'wss://你的域名/toy-mp'
 };

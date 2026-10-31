@@ -184,6 +184,99 @@ Node 调用的部分（`X-Toy-Server-Key` 头）：
 - 限流：单连接每秒最多 20 条消息，超过直接丢弃；单条消息最大 2048 字节。
 - 输入校验：房间号、座位号、道具格下标均做边界与类型校验。
 
+## 公网部署（Toy 静态站 + 独立 Node）
+
+Toy 只托管静态文件，`backend/` 必须落在自己的服务器上。整条链路：
+
+```
+浏览器 ──https──> www.bilibilitoy.com/toy/buckshot-roulette-3/   （Toy 静态包）
+   └──────wss────> api.cloudery.cn/toy-mp  ──反代──> 127.0.0.1:8080 （Node）
+                                                        └──https──> api.cloudery.cn/toy/* （ClouderyApi）
+```
+
+### 1. 服务器
+
+Node 18+（Debian/Ubuntu）：
+
+```bash
+apt-get install -y nodejs npm
+useradd --system --no-create-home --shell /usr/sbin/nologin toy
+mkdir -p /www/toy-mp/backend && chown -R toy:toy /www/toy-mp
+```
+
+### 2. 上传后端
+
+只传 `backend/` 下的 `server.js`、`rooms.js`、`api.js`、`package.json`、`package-lock.json`，
+不要传 `node_modules/`、`tools/`（自测脚本只在开发机跑）：
+
+```bash
+scp backend/{server.js,rooms.js,api.js,package.json,package-lock.json} root@host:/www/toy-mp/backend/
+ssh root@host 'cd /www/toy-mp/backend && npm ci --omit=dev'
+```
+
+### 3. 环境变量
+
+复制 `backend/.env.example` 为 `/www/toy-mp/backend/.env`（权限 `600`、属主 `toy`），至少填：
+
+| 变量 | 生产值 |
+|---|---|
+| `TOY_API_BASE` | `https://api.cloudery.cn` |
+| `TOY_SERVER_KEY` | 与 ClouderyApi 的 `Toy:ServerKey` 一致 |
+| `ALLOWED_ORIGINS` | `https://www.bilibilitoy.com,https://www.bilibili.com` |
+
+### 4. 常驻
+
+```bash
+cp backend/deploy/toy-mp.service /etc/systemd/system/
+systemctl daemon-reload && systemctl enable --now toy-mp
+systemctl status toy-mp --no-pager
+curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8080/   # 期望 200
+```
+
+房间状态全在进程内存，**重启会清掉所有进行中的对局**，所以配了 `Restart=always` 但别随手 restart。
+
+### 5. 反代（关键）
+
+见 `backend/deploy/openresty-toy-mp.conf`。三条缺一不可：`proxy_http_version 1.1`、
+透传 `Upgrade`/`Connection`、`proxy_read_timeout` ≥ 60s（Node 每 30s ping 一次）。
+
+`api.cloudery.cn` 解析到多个 IP，说明前面有 CDN —— **CDN 侧必须打开 WebSocket 支持并放行 Upgrade 头**，
+否则源站再对，公网握手也会失败。
+
+### 6. ClouderyApi 侧
+
+生产 `appsettings.json` 里必须有（类型与本地 `ClouderyApiFactory` 一致）：
+
+```json
+"Toy": { "ServerKey": "<随机 32 字节>", "TokenKey": "<另一串随机>" }
+```
+
+改完重启容器，再确认三张表在（缺表说明 `--migrate` 没跑过）。
+
+### 7. 前端发布
+
+```bash
+BR_WS_URL=wss://api.cloudery.cn/toy-mp bash tools/build-static.sh
+toy update 50149917199360 dist --icon assets/icon.png --poster assets/icon.png --yes
+```
+
+地址由构建脚本注入 `dist/js/config.js`，源码里保持留空 —— 否则本地联调会被指到线上。
+`wsUrl` 为空时菜单会隐藏「多人联机」，所以入口消失基本等同于「这一版没配联机」。
+
+### 8. 验收（公网，不要只信本地）
+
+```bash
+# 1) 反代通不通：HTTP 200 说明静态服务在
+curl -s -o /dev/null -w '%{http_code}\n' https://api.cloudery.cn/toy-mp/
+# 2) WS 握手通不通：期望 HTTP/1.1 101
+curl -si -m 8 -H 'Connection: Upgrade' -H 'Upgrade: websocket' \
+     -H 'Sec-WebSocket-Version: 13' -H 'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==' \
+     https://api.cloudery.cn/toy-mp | head -3
+# 3) 端到端：两个浏览器开同一房间号进对局，一人断网 60 秒内重连回原座位
+```
+
+第 2 步拿到 `101` 才算反代真的对了；拿到 `400`/`426` 基本是 Upgrade 头没透传。
+
 ## 自测脚本
 
 ```bash
