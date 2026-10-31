@@ -224,6 +224,7 @@ ssh root@host 'cd /www/toy-mp/backend && npm ci --omit=dev'
 | `TOY_SERVER_KEY` | 与 ClouderyApi 的 `Toy:ServerKey` 一致 |
 | `ALLOWED_ORIGINS` | `https://www.bilibilitoy.com,https://www.bilibili.com` |
 | `TURN_TIMEOUT_SECONDS` | 回合操作时限，默认 `40`。超时后服务端按 AI（只用公开信息）代打一步并广播提示 |
+| `TOY_DEBUG` | 设为 `1` 开启客户端 DEV 面板的 debug-end / debug-money 调试通道；不设则消息一律忽略 |
 
 ### 4. 常驻
 
