@@ -16,6 +16,7 @@
   let pendingHello = null;   // connect() 的 resolve/reject
   let reconnectTimer = null;
   let lastHello = { name: '', openId: null };
+  let pendingAuth = null;    // debug-auth 校验的 resolve
 
   function loadIdent() {
     try { ident = JSON.parse(localStorage.getItem(IDENT_KEY) || 'null'); } catch (e) { ident = null; }
@@ -62,7 +63,11 @@
       case 'closed': BR.net.onClosed && BR.net.onClosed(msg.reason); break;
       case 'offline-left': BR.net.onNotice && BR.net.onNotice(`${msg.name} 掉线超时，已离开`); break;
       case 'notice': BR.net.onNotice && BR.net.onNotice(msg.text); break;
-      case 'error': BR.net.onError && BR.net.onError(msg.message); break;
+      case 'debug-auth': if (pendingAuth) { const p = pendingAuth; pendingAuth = null; p({ ok: true }); } break;
+      case 'error':
+        if (pendingAuth) { const p = pendingAuth; pendingAuth = null; p({ ok: false, reason: msg.message }); }
+        BR.net.onError && BR.net.onError(msg.message);
+        break;
       default: break;
     }
   }
@@ -132,6 +137,26 @@
 
     send(msg) { if (net.connected()) ws.send(JSON.stringify(msg)); },
 
+    /**
+     * 开发者密码校验（服务端 timing-safe 比对 TOY_DEBUG_PASSWORD）。
+     * 主菜单的开发者面板用：过不了门禁不解锁存档/排行榜修改。
+     * 返回 {ok, reason}；6 秒没回执按「服务端未开启调试通道」处理。
+     */
+    async verifyDebug(password) {
+      if (!net.configured()) return { ok: false, reason: '联机服务器未配置，无法校验' };
+      if (!net.connected()) {
+        try {
+          const id = net.identity();
+          await net.connect(id ? id.nickname : '', null);
+        } catch (e) { return { ok: false, reason: '连不上联机服务器：' + e.message }; }
+      }
+      return await new Promise((resolve) => {
+        const t = setTimeout(() => { pendingAuth = null; resolve({ ok: false, reason: '服务端没有响应（调试通道未开启？）' }); }, 6000);
+        pendingAuth = (r) => { clearTimeout(t); resolve(r); };
+        net.send({ type: 'debug-auth', password: String(password || '') });
+      });
+    },
+
     lobby() { net.send({ type: 'lobby' }); },
     create() { net.send({ type: 'create' }); },
     join(code) { net.send({ type: 'join', code }); },
@@ -159,6 +184,7 @@
     reset() {
       net.onRoom = net.onStart = net.onEvents = net.onError = net.onClosed = null;
       net.onRooms = net.onMatch = net.onWaitingHost = net.onResume = net.onStatus = net.onNotice = null;
+      pendingAuth = null;
     }
   };
 

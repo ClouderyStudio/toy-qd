@@ -332,6 +332,12 @@ function debugCheck(ws, password) {
   return false;
 }
 
+function debugAuth(ws, password) {
+  if (!DEBUG_TOOLS || !DEBUG_PASSWORD) return send(ws, { type: 'error', message: '服务端未开启调试通道' });
+  if (!debugCheck(ws, password)) return;
+  send(ws, { type: 'debug-auth', ok: true });
+}
+
 function debugEnd(ws, password) {
   if (!debugCheck(ws, password)) return;
   const room = ws.room;
@@ -597,6 +603,7 @@ function handle(ws, msg) {
     case 'join': return join(ws, msg.code);
     case 'start': return start(ws);
     case 'action': return action(ws, msg.action);
+    case 'debug-auth': return debugAuth(ws, msg.password);
     case 'debug-end': return debugEnd(ws, msg.password);
     case 'debug-money': return debugMoney(ws, msg.amount, msg.password);
     case 'leave': return leave(ws);

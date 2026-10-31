@@ -258,8 +258,41 @@
     },
 
     // 开发者面板（入口：主菜单底部版权文字连点 5 次，不对普通玩家暴露）
+    // 主菜单开发者面板：两段式。先过服务端密码门禁（debug-auth），通过才解锁
+    // 存档修改与排行榜提交——这俩走 Toy 平台云存储不经我们服务器，但排行榜
+    // 提交在正式链接里会真写榜，不能只靠藏入口。
     dev() {
-      try { sessionStorage.setItem('br_dev', '1'); } catch (e) { /* 忽略 */ }
+      let ok = false;
+      try { ok = sessionStorage.getItem('br_dev_ok') === '1'; } catch (e) { /* 忽略 */ }
+      if (ok) this.devMain();
+      else this.devGate();
+    },
+
+    devGate() {
+      const p = panel(`<div class="ov-card"><h2>开发者面板</h2>
+        <p class="ov-sub">此面板可改存档、向排行榜提交分数，需先验证调试密码。</p>
+        <div style="text-align:center"><input id="dt-pwd" size="12" placeholder="调试密码" type="password"></div>
+        <p class="ov-sub" id="dt-note" style="min-height:14px"></p>
+        <div class="ov-actions">
+          <button id="dt-go" class="pix-btn">验证</button>
+          <button id="dt-back" class="pix-btn ghost">返回</button>
+        </div>
+      </div>`);
+      const go = async () => {
+        const note = p.querySelector('#dt-note');
+        note.textContent = '验证中…';
+        const r = await BR.net.verifyDebug(p.querySelector('#dt-pwd').value);
+        if (r && r.ok) {
+          try { sessionStorage.setItem('br_dev_ok', '1'); sessionStorage.setItem('br_dev', '1'); } catch (e) { /* 忽略 */ }
+          BR.overlay.dev();
+        } else note.textContent = (r && r.reason) || '验证失败';
+      };
+      p.querySelector('#dt-go').onclick = go;
+      p.querySelector('#dt-pwd').onkeydown = (e) => { if (e.key === 'Enter') go(); };
+      p.querySelector('#dt-back').onclick = () => BR.overlay.hide();
+    },
+
+    devMain() {
       const p = panel(`<div class="ov-card wide"><h2>开发者面板</h2>
         <p class="ov-sub">本会话内对局桌面右下角会出现 DEV 按钮。</p>
         <h3 style="margin:8px 0 4px">存档（金钱 / 胜场基准值）</h3>
