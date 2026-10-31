@@ -35,6 +35,7 @@
         if (cash > +T.save.bestDon) T.set('bestDon', cash);
         rec(T.submit(2, cash));
       }
+      BR.net.reportSingle(this.mode, cash);   // 服务器留一份 reference（平台榜之外的自有记录）
     },
     draw(t) {
       BR.bg('car');

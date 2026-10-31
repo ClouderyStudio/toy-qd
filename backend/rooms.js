@@ -16,6 +16,7 @@ require('../js/engine-flow.js');
 require('../js/engine-items.js');
 require('../js/ai.js');   // 超时代打用的决策函数（只用视图公开信息，不偷看子弹）
 const api = require('./api.js');
+const store = require('./store.js');
 
 const CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const MAX_PLAYERS = 4;
@@ -70,6 +71,11 @@ function broadcastEvents(room, events) {
     if (!p.ws) return;
     send(p.ws, { type: 'events', events: BR.filterEvents(events, i), view: room.game.getView(i), turnLeft: room.turnLeft || 0 });
   });
+  // 对局结束留权威记录：result 由服务端引擎算出，不走客户端自报
+  const over = events.find((e) => e.t === 'over');
+  if (over) {
+    try { store.recordResult(room, over.result); } catch (e) { /* 记录失败不影响结算 */ }
+  }
 }
 
 // ── 回合超时：轮到谁超时不动作，就由系统按 AI 代打一歩，不让全场干等 ──────
@@ -335,7 +341,14 @@ function debugCheck(ws, password) {
 function debugAuth(ws, password) {
   if (!DEBUG_TOOLS || !DEBUG_PASSWORD) return send(ws, { type: 'error', message: '服务端未开启调试通道' });
   if (!debugCheck(ws, password)) return;
+  ws.devAuth = true;   // 本连接后续 debug-audit 免重复带密码
   send(ws, { type: 'debug-auth', ok: true });
+}
+
+// 开发者面板操作审计：存档修改 / 排行榜提交留痕（必须先过 debug-auth）
+function debugAudit(ws, kind, detail) {
+  if (!ws.devAuth) return send(ws, { type: 'error', message: '尚未通过调试密码验证' });
+  try { store.recordAudit(ws.player, kind, detail); } catch (e) { /* 忽略 */ }
 }
 
 function debugEnd(ws, password) {
@@ -604,6 +617,7 @@ function handle(ws, msg) {
     case 'start': return start(ws);
     case 'action': return action(ws, msg.action);
     case 'debug-auth': return debugAuth(ws, msg.password);
+    case 'debug-audit': return debugAudit(ws, msg.kind, msg.detail);
     case 'debug-end': return debugEnd(ws, msg.password);
     case 'debug-money': return debugMoney(ws, msg.amount, msg.password);
     case 'leave': return leave(ws);

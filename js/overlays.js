@@ -232,13 +232,22 @@
     async rank() {
       const p = panel(`<div class="ov-card wide"><h2>排行榜</h2><div id="r-tabs"></div><div id="r-body"></div><button id="r-back" class="pix-btn ghost">返回</button></div>`);
       p.querySelector('#r-back').onclick = () => BR.overlay.hide();
-      const tabs = [{ b: 1, n: '故事奖金' }, { b: 2, n: 'DoN 奖金' }, { b: 3, n: '多人胜场' }];
+      const tabs = [{ b: 1, n: '故事奖金' }, { b: 2, n: 'DoN 奖金' }, { b: 3, n: '多人胜场' }, { b: 4, n: '服务器战绩' }];
       let cur = 1;
       const drawTabs = () => p.querySelector('#r-tabs').innerHTML = tabs.map((t) =>
         `<button class="pix-btn tab ${t.b === cur ? 'active' : ''}" data-b="${t.b}">${t.n}</button>`).join('');
       const body = p.querySelector('#r-body');
       const load = async () => {
         body.innerHTML = '加载中…';
+        if (cur === 4) {
+          // 服务器自有战绩：联机结果由服务端引擎判定（权威），单机为客户端自报
+          const s = await BR.net.serverStats();
+          if (!s || !s.players || !s.players.length) { body.innerHTML = '服务器暂无战绩数据（需要联机后端在线）'; return; }
+          body.innerHTML = '<table><tr><td style="color:#888">#</td><td style="color:#888">玩家</td><td style="color:#888">胜/局</td><td style="color:#888">最高奖金</td></tr>' +
+            s.players.map((x, i) =>
+              `<tr><td>${i + 1}</td><td>${esc(x.name || '?')}</td><td>${x.wins}/${x.games}</td><td>$${Number(x.bestMoney || 0).toLocaleString()}</td></tr>`).join('') + '</table>';
+          return;
+        }
         const r = await BR.toy.rank(cur, 'all');
         if (!r) { body.innerHTML = '排行榜不可用（需要在 B站 Toy 内打开）'; return; }
         body.innerHTML = (r.mine && r.mine.ranked ?
@@ -319,6 +328,7 @@
         const s = p.querySelector('#dv-story').value, d = p.querySelector('#dv-don').value, m = p.querySelector('#dv-mp').value;
         await T.set('bestStory', s); await T.set('bestDon', d); await T.set('mpWins', m);
         p.querySelector('#dv-result').textContent = '存档已保存（云存储同步异步进行）';
+        BR.net.audit('save-edit', { bestStory: s, bestDon: d, mpWins: m });   // 服务器审计留痕
       };
       p.querySelector('#dv-submit').onclick = async () => {
         const board = +p.querySelector('#dv-board').value;
@@ -328,6 +338,7 @@
         p.querySelector('#dv-result').textContent = r.ok
           ? `board ${board} ← ${score} 提交成功`
           : `提交失败：${r.reason}`;
+        BR.net.audit('board-submit', { board, score, ok: r.ok, reason: r.reason || null });
       };
       p.querySelector('#dv-back').onclick = () => BR.overlay.hide();
     },

@@ -44,6 +44,11 @@
     return (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host;
   }
 
+  // wss://host/path → https://host/path（HTTP 上报 / 战绩查询用同一个后端）
+  function httpBase() {
+    return url().replace(/^ws/, 'http');
+  }
+
   function dispatch(msg) {
     switch (msg.type) {
       case 'you':
@@ -155,6 +160,33 @@
         pendingAuth = (r) => { clearTimeout(t); resolve(r); };
         net.send({ type: 'debug-auth', password: String(password || '') });
       });
+    },
+
+    /** 单机结算上报：服务端留一份 reference（无法验证，仅作记录）。失败静默。 */
+    reportSingle(mode, cash) {
+      if (!net.configured()) return;
+      const id = net.identity();
+      try {
+        fetch(httpBase() + '/report', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: id ? id.nickname : '', playerId: id ? id.playerId : null, mode, cash })
+        }).catch(() => {});
+      } catch (e) { /* 忽略 */ }
+    },
+
+    /** 服务器战绩榜（排行榜面板「服务器战绩」页签）。 */
+    async serverStats() {
+      try {
+        const r = await fetch(httpBase() + '/api/stats');
+        if (!r.ok) return null;
+        return await r.json();
+      } catch (e) { return null; }
+    },
+
+    /** 开发者操作审计（已过 debug-auth 门禁的连接才生效）。 */
+    audit(kind, detail) {
+      if (net.connected()) net.send({ type: 'debug-audit', kind, detail });
     },
 
     lobby() { net.send({ type: 'lobby' }); },

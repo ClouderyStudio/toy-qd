@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const { WebSocketServer } = require('ws');
 const rooms = require('./rooms.js');
+const store = require('./store.js');
 
 const PORT = process.env.PORT || 8080;
 // 生产只监听回环：公网入口统一走 OpenResty（它反代到 127.0.0.1:<PORT>）。
@@ -20,8 +21,54 @@ const PING_MS = 30000;       // 保活间隔：反代 / CDN 一般 60~100 秒掐
 // 无 Origin 的连接（Node 脚本、服务端调用）一律放行 —— Origin 本来就可以被非浏览器伪造。
 const ALLOWED = (process.env.ALLOWED_ORIGINS || '').split(',').map((s) => s.trim()).filter(Boolean);
 
+// HTTP 接口（/report /api/stats）从静态站跨域调用：按名单回 CORS 头。
+// 与 WS 同一策略：无 Origin（脚本 / 服务端调用）也放行。
+function cors(req, res) {
+  const origin = req.headers.origin || '';
+  if (!ALLOWED.length || !origin || ALLOWED.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin || '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    res.setHeader('Vary', 'Origin');
+    return true;
+  }
+  return false;
+}
+
+function readBody(req, limit, cb) {
+  let buf = '';
+  req.on('data', (c) => { buf += c; if (buf.length > limit) req.destroy(); });
+  req.on('end', () => cb(buf));
+}
+
 const server = http.createServer((req, res) => {
   let p = decodeURIComponent(req.url.split('?')[0]);
+
+  // 单机结算自报：无法验证，只作 reference（权威数据是服务端算的 mp 结果）
+  if (p === '/report' && req.method === 'POST') {
+    if (!cors(req, res)) { res.writeHead(403); return res.end(); }
+    return readBody(req, 1024, (body) => {
+      let d = {};
+      try { d = JSON.parse(body || '{}'); } catch (e) { /* 空对象 */ }
+      store.recordClaimed(d.name, d.playerId, d.mode, d.cash);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end('{"ok":true}');
+    });
+  }
+
+  // 服务器战绩聚合榜（排行榜面板「服务器战绩」页签）
+  if (p === '/api/stats' && req.method === 'GET') {
+    if (!cors(req, res)) { res.writeHead(403); return res.end(); }
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ players: store.topPlayers(50) }));
+  }
+
+  if (req.method === 'OPTIONS' && (p === '/report' || p === '/api/stats')) {
+    if (!cors(req, res)) { res.writeHead(403); return res.end(); }
+    res.writeHead(204);
+    return res.end();
+  }
+
   if (p === '/') p = '/index.html';
   const file = path.resolve(ROOT, '.' + p);
   const rel = path.relative(ROOT, file).replace(/\\/g, '/');
