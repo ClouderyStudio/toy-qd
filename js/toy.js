@@ -63,10 +63,13 @@
       }
     },
 
+    // 返回 { ok, reason }。提交结果要可见——预览环境不支持 submitScore，
+    // 静默失败会让玩家以为「打了榜但榜上没数据」。
     async submit(board, score) {
-      if (!(await has('submitScore'))) return null;
+      if (!(await has('submitScore'))) return { ok: false, reason: '当前环境不支持排行榜（正式链接内可用）' };
       score = Math.max(-16777216, Math.min(16777215, Math.round(score)));
-      try { return await call(() => T().submitScore({ board, score })); } catch (e) { return null; }
+      try { await call(() => T().submitScore({ board, score })); return { ok: true }; }
+      catch (e) { return { ok: false, reason: '成绩上传失败：' + (e && (e.code || e.message) || '未知错误') }; }
     },
 
     async rank(board, period) {

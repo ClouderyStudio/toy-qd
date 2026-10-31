@@ -24,15 +24,16 @@
 
   BR.scenes.car = {
     enter(o) {
-      this.t0 = BR.t; this.v = o.view; this.cash = o.result.cash; this.mode = o.mode;
+      this.t0 = BR.t; this.v = o.view; this.cash = o.result.cash; this.mode = o.mode; this.upload = null;
       const T = BR.toy, cash = this.cash;
+      const rec = (p) => p && p.then && p.then((r) => { this.upload = r; });
       if (this.mode === 'story') {
         T.set('donUnlocked', '1');
         if (cash > +T.save.bestStory) T.set('bestStory', cash);
-        T.submit(1, cash);
+        rec(T.submit(1, cash));
       } else {
         if (cash > +T.save.bestDon) T.set('bestDon', cash);
-        T.submit(2, cash);
+        rec(T.submit(2, cash));
       }
     },
     draw(t) {
@@ -52,18 +53,23 @@
         g.text(String(b), 210, 36 + i * 10, { align: 'right', size: 6, col: i === 6 ? '#80e080' : '#e0e0e8' });
       });
       if (this.mode === 'story' && k > 3.5) g.text('浴室的洗手台上，多了一瓶药丸……', 160, 112, { align: 'center', size: 5, col: '#c06060' });
-      if (k > 3.5) BR.button('回到菜单', 240, 162, 70, 13, () => BR.go('menu'), { size: 6 });
+      if (k > 3.5) {
+        if (this.upload) g.text(this.upload.ok ? '成绩已计入排行榜' : this.upload.reason, 160, 124, { align: 'center', size: 5, col: this.upload.ok ? '#8fa88f' : '#c08060' });
+        BR.button('回到菜单', 240, 162, 70, 13, () => BR.go('menu'), { size: 6 });
+      }
     }
   };
 
   BR.scenes.mpResult = {
     enter(o) {
-      this.r = o.result; this.v = o.view; this.me = o.me;
+      this.r = o.result; this.v = o.view; this.me = o.me; this.upload = null;
       BR.net.close();
       if (this.r.winner === this.me) {
         const w = +BR.toy.save.mpWins + 1;
         BR.toy.set('mpWins', w);
-        BR.toy.submit(3, w);
+        BR.toy.submit(3, w).then((r) => { this.upload = r; });
+      } else {
+        this.upload = { ok: true };   // 败者不占提交额度，只是榜上没有他的行
       }
     },
     draw(t) {
@@ -78,6 +84,10 @@
         g.text(`${k + 1}. ${s.name}${s.connected ? '' : '（离开）'}`, 100, 56 + k * 14, { size: 7, col });
         g.text('$' + this.r.money[i].toLocaleString(), 220, 56 + k * 14, { align: 'right', size: 7, col });
       });
+      if (this.upload) {
+        const msg = win ? (this.upload.ok ? '胜场已计入排行榜' : this.upload.reason) : '';
+        if (msg) g.text(msg, 160, 130, { align: 'center', size: 5, col: this.upload.ok ? '#8fa88f' : '#c08060' });
+      }
       BR.button('回到菜单', 125, 140, 70, 14, () => BR.go('menu'));
     }
   };

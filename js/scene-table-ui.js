@@ -40,13 +40,16 @@
       BR.button('取消', 290, 144, 28, 13, S.cancel, { size: 5 });
     }
 
-    // 回合提示
+    // 回合提示（联机时带服务端下发的剩余秒数，最后 10 秒变红）
+    const tl = S.turnLeft > 0 ? Math.ceil(S.turnLeft / 1000) : 0;
+    const tlTxt = tl ? ` · ${tl}s` : '';
+    const tlCol = tl && tl <= 10 ? '#ff7050' : null;
     if (S.canAct() && ui.mode === 'idle' && dir.subT <= 0) {
-      g.text('你的回合', 300, 100, { align: 'right', size: 5, col: '#80f080' });
+      g.text(`你的回合${tlTxt}`, 300, 100, { align: 'right', size: 5, col: tlCol || '#80f080' });
     }
     if (v.phase === 'turn' && dir.idle() && v.turn !== me && v.seats[me].alive) {
       const dots = '.'.repeat(1 + Math.floor(t * 2) % 3);
-      g.text('等待' + dots, 300, 100, { align: 'right', size: 5, col: '#a0a090' });
+      g.text(`等待${dots}${tlTxt}`, 300, 100, { align: 'right', size: 5, col: tlCol || '#a0a090' });
     }
     if (!v.seats[me].alive && v.phase === 'turn' && v.mode === 'mp') {
       g.text('你倒下了。观战中……', 160, 30, { align: 'center', size: 6, col: '#c05050' });

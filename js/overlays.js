@@ -162,14 +162,14 @@
       BR.net.onStart = (s) => {
         stopRefresh();
         BR.overlay.hide();
-        BR.go('table', { net: true, you: s.you, view: s.view });
+        BR.go('table', { net: true, you: s.you, view: s.view, turnLeft: s.turnLeft });
       };
       // 重连回到对局：大厅这边只处理「不在对局场景」的情况（对局中由 scene-table 接管）
-      BR.net.onResume = (view, you) => {
+      BR.net.onResume = (view, you, turnLeft) => {
         if (!view) return;
         stopRefresh();
         BR.overlay.hide();
-        BR.go('table', { net: true, you, view, resume: true });
+        BR.go('table', { net: true, you, view, resume: true, turnLeft });
       };
 
       function noteOffline() {

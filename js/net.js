@@ -54,13 +54,14 @@
       case 'room': BR.net.onRoom && BR.net.onRoom(msg); break;
       case 'rooms': BR.net.onRooms && BR.net.onRooms(msg.rooms || [], msg.online); break;
       case 'start': BR.net.onStart && BR.net.onStart(msg); break;
-      case 'events': BR.net.onEvents && BR.net.onEvents(msg.events, msg.view); break;
-      case 'resume': BR.net.onResume && BR.net.onResume(msg.view, msg.you); break;
+      case 'events': BR.net.onEvents && BR.net.onEvents(msg.events, msg.view, msg.turnLeft || 0); break;
+      case 'resume': BR.net.onResume && BR.net.onResume(msg.view, msg.you, msg.turnLeft || 0); break;
       case 'resumed': BR.net.onResume && BR.net.onResume(null, msg.you); break;
       case 'match': BR.net.onMatch && BR.net.onMatch(msg); break;
       case 'waiting-host': BR.net.onWaitingHost && BR.net.onWaitingHost(msg); break;
       case 'closed': BR.net.onClosed && BR.net.onClosed(msg.reason); break;
       case 'offline-left': BR.net.onNotice && BR.net.onNotice(`${msg.name} 掉线超时，已离开`); break;
+      case 'notice': BR.net.onNotice && BR.net.onNotice(msg.text); break;
       case 'error': BR.net.onError && BR.net.onError(msg.message); break;
       default: break;
     }

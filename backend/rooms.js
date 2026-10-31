@@ -14,6 +14,7 @@ require('../js/engine-core.js');
 require('../js/engine-act.js');
 require('../js/engine-flow.js');
 require('../js/engine-items.js');
+require('../js/ai.js');   // 超时代打用的决策函数（只用视图公开信息，不偷看子弹）
 const api = require('./api.js');
 
 const CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -22,6 +23,7 @@ const RESERVE_GAME_MS = 60 * 1000;   // 对局中掉线保留座位
 const RESERVE_LOBBY_MS = 20 * 1000;  // 大厅里掉线保留座位
 const HEARTBEAT_MS = 15 * 1000;      // 房间心跳（API 侧 TTL 120 秒）
 const POLL_MS = 1500;                // 快速匹配轮询间隔
+const TURN_TIMEOUT_MS = Math.max(10, Number(process.env.TURN_TIMEOUT_SECONDS) || 40) * 1000;
 
 const rooms = new Map();       // code -> room
 const seats = new Map();       // playerId -> { room, seat }（重连找回座位）
@@ -64,8 +66,42 @@ function roomInfo(room) {
 function broadcastEvents(room, events) {
   room.players.forEach((p, i) => {
     if (!p.ws) return;
-    send(p.ws, { type: 'events', events: BR.filterEvents(events, i), view: room.game.getView(i) });
+    send(p.ws, { type: 'events', events: BR.filterEvents(events, i), view: room.game.getView(i), turnLeft: room.turnLeft || 0 });
   });
+}
+
+// ── 回合超时：轮到谁超时不动作，就由系统按 AI 代打一歩，不让全场干等 ──────
+
+function clearTurn(room) {
+  if (room.turnTimer) { clearTimeout(room.turnTimer); room.turnTimer = null; }
+  room.turnLeft = 0;
+}
+
+function scheduleTurn(room) {
+  clearTurn(room);
+  if (!room.game || room.game.phase !== 'turn') return;
+  room.turnLeft = TURN_TIMEOUT_MS;
+  room.turnTimer = setTimeout(() => autoPlay(room), TURN_TIMEOUT_MS);
+}
+
+function autoPlay(room) {
+  room.turnTimer = null;
+  room.turnLeft = 0;
+  const game = room.game;
+  if (!game || game.phase !== 'turn') return;
+  const seat = game.turn;
+  const name = room.players[seat] ? room.players[seat].name : `P${seat + 1}`;
+  let action = null;
+  try { action = BR.aiDecide(game.getView(seat)); } catch (e) { action = null; }
+  if (!action || action.type === 'item') action = { type: 'shoot', target: seat };   // 代打只开枪，不替人用道具
+  if (action.type === 'shoot' && !game.validSeat(action.target)) action = { type: 'shoot', target: seat };
+  let events = [];
+  try { events = game.act(seat, action); } catch (e) {
+    try { events = game.act(seat, { type: 'shoot', target: seat }); } catch (e2) { return; }
+  }
+  sendToAll(room, { type: 'notice', text: `${name} 超时，系统代为行动` });
+  scheduleTurn(room);
+  broadcastEvents(room, events);
 }
 
 function seatOf(room, ws) {
@@ -143,7 +179,7 @@ function resume(ws, player) {
   const index = room.players.indexOf(seat);
   roomInfo(room);
 
-  if (room.game) send(ws, { type: 'resume', you: index, view: room.game.getView(index) });
+  if (room.game) send(ws, { type: 'resume', you: index, view: room.game.getView(index), turnLeft: room.turnLeft || 0 });
   else send(ws, { type: 'resumed', code: room.code, you: index });
 }
 
@@ -221,7 +257,7 @@ function enterRoom(ws, room) {
   if (mine) {
     attach(ws, room, mine);
     roomInfo(room);
-    if (room.game) send(ws, { type: 'resume', you: room.players.indexOf(mine), view: room.game.getView(room.players.indexOf(mine)) });
+    if (room.game) send(ws, { type: 'resume', you: room.players.indexOf(mine), view: room.game.getView(room.players.indexOf(mine)), turnLeft: room.turnLeft || 0 });
     return;
   }
 
@@ -261,7 +297,8 @@ function start(ws) {
 
   room.game = new BR.Game('mp', room.players.map((p) => p.name));
   const events = room.game.start();
-  room.players.forEach((p, i) => send(p.ws, { type: 'start', you: i, view: room.game.getView(i) }));
+  scheduleTurn(room);
+  room.players.forEach((p, i) => send(p.ws, { type: 'start', you: i, view: room.game.getView(i), turnLeft: room.turnLeft || 0 }));
   broadcastEvents(room, events);
   syncRoom(room, 'playing');
 }
@@ -273,6 +310,7 @@ function action(ws, a) {
   if (seat < 0) return;
   let events;
   try { events = room.game.act(seat, a); } catch (e) { return send(ws, { type: 'error', message: e.message }); }
+  scheduleTurn(room);
   broadcastEvents(room, events);
 }
 
@@ -333,6 +371,7 @@ function removeSeat(room, seat, notifyGame) {
   if (notifyGame && room.game) {
     let events = [];
     try { events = room.game.leave(seat) || []; } catch (e) { events = []; }
+    scheduleTurn(room);
     if (events.length) broadcastEvents(room, events);
   }
 
@@ -341,6 +380,7 @@ function removeSeat(room, seat, notifyGame) {
 }
 
 function teardown(room) {
+  clearTurn(room);
   room.players.forEach((p) => {
     if (p.ws) p.ws.room = null;
     seats.delete(p.playerId);

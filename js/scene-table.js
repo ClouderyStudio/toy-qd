@@ -6,16 +6,17 @@
 
   S.enter = function (o) {
     net = !!o.net; ui = { mode: 'idle', sel: -1, foe: -1 }; aiT = 0; leaving = false; pending = false;
+    S.turnLeft = net ? (o.turnLeft || 0) : 0;   // 服务端下发的本回合剩余毫秒（0 = 非回合阶段 / 单机）
     if (net) {
       me = o.you; game = null;
       dir = new BR.Director(o.view, me);
-      BR.net.onEvents = (ev, view) => { pending = false; dir.push(ev, view); };
+      BR.net.onEvents = (ev, view, left) => { pending = false; S.turnLeft = left || 0; dir.push(ev, view); };
       BR.net.onError = (msg) => { pending = false; dir.say(msg, 2); };
       BR.net.onClosed = (why) => { dir.say(why || '连接已断开', 3); setTimeout(() => BR.go('menu'), 2500); };
       // 断线重连回到座位：服务端补发最新视图，直接用它重建播放器（比回放事件更稳，也不会重复播放动画）
-      BR.net.onResume = (view, you) => {
+      BR.net.onResume = (view, you, left) => {
         if (!view) return;
-        me = you; pending = false;
+        me = you; pending = false; S.turnLeft = left || 0;
         dir = new BR.Director(view, me);
         dir.say('已重新连上，回到座位', 1.8);
       };
@@ -52,6 +53,7 @@
   S.foes = () => dir.v.seats.map((s, i) => i).filter((i) => i !== me);
 
   S.update = function (dt) {
+    if (S.turnLeft > 0) S.turnLeft = Math.max(0, S.turnLeft - dt * 1000);
     dir.update(dt);
     if (!dir.idle()) return;
     // 本地庄家回合
