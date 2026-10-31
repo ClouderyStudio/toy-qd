@@ -6,3 +6,4 @@ node_modules/
 .trae/
 backend/test-*.js
 .workbuddy/
+dist/

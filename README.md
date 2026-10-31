@@ -65,6 +65,7 @@ backend/
   tools/              联机自测脚本（房间号、降级、座位超时）
   package.json
 docs/backend-api.md   后端协议文档
+tools/build-static.sh 生成 dist/ 发布包（只含浏览器需要的静态文件）
 ```
 
 ## 部署
@@ -81,7 +82,14 @@ docs/backend-api.md   后端协议文档
 
 1. 把 `js/config.js` 的 `wsUrl` 改成 `'wss://你的联机域名'`（例 `wss://game.cldery.com`）。
    留空只在「网页和后端同机同源」时成立；页面不在本机又留空会直接提示「联机服务器未配置」。
-2. 上传 `index.html` / `css/` / `js/` 到 Toy。
+2. 打包出纯静态目录（只含 `index.html` / `css/` / `js/`，约 140KB）：
+   ```bash
+   bash tools/build-static.sh    # 生成 dist/
+   toy create dist --title "恶魔轮盘" --category GAME --yes     # 首次
+   toy update <toy-id> dist --yes                              # 之后更新
+   ```
+   不要直接在仓库根目录跑 `toy create`：CLI 是整目录打包，会把 `backend/`（服务端实现与
+   `node_modules`）和 `docs/` 一起传上去。
 3. 服务器上 `cd backend && npm install`，带环境变量启动：
    ```bash
    PORT=8080 \
