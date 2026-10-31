@@ -65,3 +65,19 @@ body { font-family: "Courier New", "Microsoft YaHei", monospace; color: #d8d4c0;
 .ov-card td:nth-child(3) { text-align: right; color: #80c080; }
 
 .ov-rules p { font-size: 12px; }
+
+/* 联机大厅：房间列表 */
+.ov-empty { color: #6a6a70; font-size: 12px; padding: 6px 0; }
+.ov-room {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  padding: 7px 10px; margin-bottom: 6px;
+  background: #1a1a18; color: #c8c4b0; font-family: inherit; font-size: 12px;
+  border: 2px solid #3a3a44; box-shadow: inset 2px 2px 0 #0a0a08; cursor: pointer;
+  text-align: left;
+}
+.ov-room:hover { background: #2a2a25; color: #fff; border-color: #6a1010; }
+.ov-room-code { color: #ffe080; letter-spacing: 1px; min-width: 58px; }
+.ov-room-names { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ov-room-count { color: #80c080; }
+.ov-off { color: #e08080; font-size: 11px; }
+

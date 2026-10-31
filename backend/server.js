@@ -39,7 +39,8 @@ wss.on('connection', (ws) => {
     if (!msg || typeof msg.type !== 'string') return;
     rooms.handle(ws, msg);
   });
-  ws.on('close', () => rooms.leave(ws));
+  // 断开不等于离开：rooms.disconnect 先把座位保留一段时间，等带令牌的重连回来接管。
+  ws.on('close', () => rooms.disconnect(ws));
 });
 
 server.listen(PORT, () => {

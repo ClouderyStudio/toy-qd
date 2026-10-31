@@ -12,6 +12,17 @@
       BR.net.onEvents = (ev, view) => { pending = false; dir.push(ev, view); };
       BR.net.onError = (msg) => { pending = false; dir.say(msg, 2); };
       BR.net.onClosed = (why) => { dir.say(why || '连接已断开', 3); setTimeout(() => BR.go('menu'), 2500); };
+      // 断线重连回到座位：服务端补发最新视图，直接用它重建播放器（比回放事件更稳，也不会重复播放动画）
+      BR.net.onResume = (view, you) => {
+        if (!view) return;
+        me = you; pending = false;
+        dir = new BR.Director(view, me);
+        dir.say('已重新连上，回到座位', 1.8);
+      };
+      BR.net.onStatus = (s, n) => {
+        if (s === 'reconnecting') dir.say(`连接中断，正在重连（${n}）…`, 2.5);
+      };
+      BR.net.onNotice = (t) => dir.say(t, 2);
     } else {
       me = 0;
       game = new BR.Game(o.mode, [o.name, 'DEALER']);
@@ -25,7 +36,10 @@
   };
   S.exit = function () {
     BR.sfx.drone(false);
-    if (net) { BR.net.onEvents = BR.net.onError = BR.net.onClosed = null; }
+    if (net) {
+      BR.net.onEvents = BR.net.onError = BR.net.onClosed = null;
+      BR.net.onResume = BR.net.onStatus = BR.net.onNotice = null;
+    }
   };
 
   S.send = function (a) {

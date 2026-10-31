@@ -56,7 +56,9 @@
       if (await has('getUserProfile')) {
         try {
           const p = await T().getUserProfile();
-          BR.toy.profile = { nickname: p.nickname, avatar: p.avatar };   // 不保存 toyOpenId
+          // toyOpenId 是「仅当前 Toy 内稳定」的假名标识，只用来让服务端认出同一个玩家（重连、战绩归属）。
+          // 只放内存：不写 localStorage、不进日志、不上报埋点 —— 平台明确要求它不能用于跨 Toy 识别。
+          BR.toy.profile = { nickname: p.nickname, avatar: p.avatar, openId: p.toyOpenId || null };
         } catch (e) { /* 用户拒绝或未登录 */ }
       }
     },

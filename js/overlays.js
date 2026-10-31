@@ -45,75 +45,188 @@
     },
 
     lobby() {
+      const ident = BR.net.identity() || {};
+      const st = {
+        name: (BR.toy.profile || {}).nickname || ident.nickname || '',
+        openId: (BR.toy.profile || {}).openId || null,
+        rooms: [], inRoom: false, code: '', you: 0, host: false, queued: false, online: true, timer: null, leaving: false
+      };
+
       const p = panel(`
-        <div class="ov-card">
+        <div class="ov-card wide">
           <h2>多人联机</h2>
           <p class="ov-sub">2 ~ 4 人对战</p>
-          <input id="l-name" maxlength="6" placeholder="你的名字" value="${esc((BR.toy.profile || {}).nickname || '')}">
-          <div class="ov-row">
-            <button id="l-create" class="pix-btn">创建房间</button>
+          <div id="lb-ident">
+            <div class="ov-row">
+              <input id="lb-name" maxlength="6" placeholder="你的名字" value="${esc(st.name)}">
+              <button id="lb-enter" class="pix-btn">进入联机</button>
+            </div>
           </div>
-          <div class="ov-row">
-            <input id="l-code" maxlength="6" placeholder="房间号（6 位）" class="ov-code">
-            <button id="l-join" class="pix-btn">加入房间</button>
+          <div id="lb-main" style="display:none">
+            <div class="ov-row">
+              <button id="lb-match" class="pix-btn">快速匹配</button>
+              <button id="lb-create" class="pix-btn ghost">创建房间</button>
+              <button id="lb-refresh" class="pix-btn ghost">刷新</button>
+            </div>
+            <div id="lb-list-wrap"><div id="lb-rooms"></div></div>
+            <div class="ov-row">
+              <input id="lb-code" maxlength="6" placeholder="房间号（6 位）" class="ov-code">
+              <button id="lb-join" class="pix-btn">加入房间</button>
+            </div>
+            <div id="lb-room" style="display:none">
+              <p>房间号：<b id="lb-room-code"></b></p>
+              <p>玩家：<span id="lb-room-players"></span></p>
+              <button id="lb-start" class="pix-btn" style="display:none">开始游戏</button>
+            </div>
           </div>
-          <div id="l-room" style="display:none">
-            <p>房间号：<b id="l-code-show"></b></p>
-            <p>玩家：<span id="l-players"></span></p>
-            <button id="l-start" class="pix-btn" style="display:none">开始游戏</button>
-          </div>
-          <p class="ov-msg" id="l-msg"></p>
-          <button id="l-back" class="pix-btn ghost">返回</button>
+          <p class="ov-msg" id="lb-msg"></p>
+          <button id="lb-back" class="pix-btn ghost">返回</button>
         </div>`);
-      const msg = p.querySelector('#l-msg');
-      let roomCode = '', you = 0, host = false;
 
-      p.querySelector('#l-back').onclick = () => { BR.net.close(); BR.overlay.hide(); };
-      p.querySelector('#l-create').onclick = async () => {
-        const name = p.querySelector('#l-name').value.trim();
-        if (!name) return showMsg('请输入名字');
-        const ck = await BR.toy.checkName(name);
-        if (!ck.ok) return showMsg(ck.msg);
-        try {
-          await BR.net.connect();
-          BR.net.onRoom = (r) => {
-            roomCode = r.code; you = r.you; host = r.you === 0;
-            p.querySelector('#l-code-show').textContent = roomCode;
-            p.querySelector('#l-players').textContent = r.players.join('、');
-            p.querySelector('#l-room').style.display = 'block';
-            p.querySelector('#l-start').style.display = host && r.players.length >= 2 ? 'inline-block' : 'none';
-          };
-          BR.net.onStart = (s) => { BR.overlay.hide(); BR.go('table', { net: true, you: s.you, view: s.view }); };
-          BR.net.onError = showMsg;
-          BR.net.onClosed = (why) => showMsg(why || '连接已断开');
-          BR.net.send({ type: 'create', name });
-        } catch (e) { showMsg(e.message); }
-      };
-      p.querySelector('#l-join').onclick = async () => {
-        const name = p.querySelector('#l-name').value.trim();
-        const code = p.querySelector('#l-code').value.trim().toUpperCase();
-        if (!name || !code) return showMsg('请输入名字和房间号');
-        if (!/^[A-Z0-9]{6}$/.test(code)) return showMsg('房间号为 6 位字母数字');
-        const ck = await BR.toy.checkName(name);
-        if (!ck.ok) return showMsg(ck.msg);
-        try {
-          await BR.net.connect();
-          BR.net.onRoom = (r) => {
-            roomCode = r.code; you = r.you; host = false;
-            p.querySelector('#l-code-show').textContent = roomCode;
-            p.querySelector('#l-players').textContent = r.players.join('、');
-            p.querySelector('#l-room').style.display = 'block';
-            p.querySelector('#l-start').style.display = 'none';
-          };
-          BR.net.onStart = (s) => { BR.overlay.hide(); BR.go('table', { net: true, you: s.you, view: s.view }); };
-          BR.net.onError = showMsg;
-          BR.net.onClosed = (why) => showMsg(why || '连接已断开');
-          BR.net.send({ type: 'join', code, name });
-        } catch (e) { showMsg(e.message); }
-      };
-      p.querySelector('#l-start').onclick = () => BR.net.send({ type: 'start' });
+      const el = (id) => p.querySelector('#' + id);
+      const msg = el('lb-msg');
+      const show = (m) => { msg.textContent = m; };
 
-      function showMsg(m) { msg.textContent = m; }
+      function renderRooms() {
+        const box = el('lb-rooms');
+        if (!st.rooms.length) {
+          box.innerHTML = `<p class="ov-empty">${st.online ? '还没有人在等人，创建一间吧' : '大厅不可用，可直接用房间号开房'}</p>`;
+          return;
+        }
+        box.innerHTML = st.rooms.map((r) => `
+          <button class="ov-room" data-code="${esc(r.code)}">
+            <span class="ov-room-code">${esc(r.code)}</span>
+            <span class="ov-room-names">${esc((r.players || []).join('、'))}</span>
+            <span class="ov-room-count">${r.count || (r.players || []).length}/${r.maxPlayers || 4}</span>
+          </button>`).join('');
+        box.querySelectorAll('button[data-code]').forEach((b) => {
+          b.onclick = () => doJoin(b.dataset.code);
+        });
+      }
+
+      function renderRoom(r) {
+        st.inRoom = true;
+        st.code = r.code; st.you = r.you; st.host = r.you === 0;
+        el('lb-room').style.display = 'block';
+        el('lb-list-wrap').style.display = 'none';
+        el('lb-match').style.display = 'none';
+        el('lb-create').style.display = 'none';
+        el('lb-room-code').textContent = r.code;
+        el('lb-room-players').innerHTML = (r.players || []).map((n, i) =>
+          esc(n) + (r.offline && r.offline[i] ? ' <span class="ov-off">掉线</span>' : '')).join('、');
+        el('lb-start').style.display = (st.host && (r.players || []).length >= 2) ? 'inline-block' : 'none';
+        show(st.host ? '把房间号发给朋友，或等待匹配' : '等房主开始');
+      }
+
+      function startRefresh() {
+        if (st.timer) return;
+        st.timer = setInterval(() => { if (!st.inRoom) BR.net.lobby(); }, 4000);
+      }
+
+      function stopRefresh() {
+        if (st.timer) { clearInterval(st.timer); st.timer = null; }
+      }
+
+      // ── 回调：大厅与房间都由服务端推送 ──
+      BR.net.onRooms = (rooms, online) => {
+        st.rooms = rooms; st.online = online !== false;
+        if (!st.inRoom) renderRooms();
+      };
+      BR.net.onRoom = (r) => { st.queued = false; renderRoom(r); };
+      BR.net.onMatch = (m) => {
+        if (m.status === 'queued') { st.queued = true; show(`正在匹配… 队列第 ${m.position} 位`); return; }
+        if (m.status === 'matched') { st.queued = false; show('匹配成功，正在进入房间…'); return; }
+        if (m.status === 'timeout') { st.queued = false; show('暂时没匹配到人，可以再试或创建房间'); return; }
+        if (m.status === 'unavailable' || m.status === 'error') { st.queued = false; show(m.message || '匹配不可用'); return; }
+        if (m.status === 'cancelled') { st.queued = false; show('已取消匹配'); }
+      };
+      BR.net.onWaitingHost = (w) => {
+        st.inRoom = true;
+        el('lb-room').style.display = 'block';
+        el('lb-list-wrap').style.display = 'none';
+        el('lb-room-code').textContent = w.code;
+        el('lb-room-players').textContent = (w.players || []).join('、');
+        show('正在等房主进入房间…');
+      };
+      BR.net.onNotice = (t) => show(t);
+      BR.net.onError = (t) => { st.queued = false; show(t); };
+      BR.net.onClosed = (why) => {
+        if (st.leaving) return;
+        show(why || '连接已断开');
+        noteOffline();
+      };
+      BR.net.onStatus = (s, n) => {
+        if (s === 'reconnecting') show(`连接中断，正在重连（${n}）…`);
+        else if (s === 'online') { if (msg.textContent.indexOf('重连') >= 0) show('已重连'); }
+      };
+      BR.net.onStart = (s) => {
+        stopRefresh();
+        BR.overlay.hide();
+        BR.go('table', { net: true, you: s.you, view: s.view });
+      };
+      // 重连回到对局：大厅这边只处理「不在对局场景」的情况（对局中由 scene-table 接管）
+      BR.net.onResume = (view, you) => {
+        if (!view) return;
+        stopRefresh();
+        BR.overlay.hide();
+        BR.go('table', { net: true, you, view, resume: true });
+      };
+
+      function noteOffline() {
+        stopRefresh();
+        st.inRoom = false; st.queued = false;
+        el('lb-start').style.display = 'none';
+        el('lb-room').style.display = 'none';
+        el('lb-list-wrap').style.display = 'block';
+      }
+
+      // ── 动作 ──
+      el('lb-enter').onclick = async () => {
+        const name = el('lb-name').value.trim().slice(0, 6);
+        if (!name) return show('请输入名字');
+        if (/^(DEALER|GOD)$/i.test(name)) return show('这个名字不能用');
+        const ck = await BR.toy.checkName(name);
+        if (!ck.ok) return show(ck.msg);
+        el('lb-enter').disabled = true;
+        show('正在连接…');
+        try {
+          await BR.net.connect(name, st.openId);
+          el('lb-ident').style.display = 'none';
+          el('lb-main').style.display = 'block';
+          show('');
+          BR.net.lobby();
+          startRefresh();
+        } catch (e) {
+          show(e.message || '连接失败');
+        } finally {
+          el('lb-enter').disabled = false;
+        }
+      };
+
+      el('lb-create').onclick = () => { show('正在创建…'); BR.net.create(); };
+      el('lb-refresh').onclick = () => { BR.net.lobby(); };
+      el('lb-match').onclick = () => {
+        if (st.queued) { BR.net.cancelMatch(); return; }
+        show('正在匹配…');
+        BR.net.match();
+      };
+      el('lb-join').onclick = () => doJoin(el('lb-code').value.trim().toUpperCase());
+      el('lb-start').onclick = () => { show('开始！'); BR.net.start(); };
+
+      function doJoin(code) {
+        if (!code) return show('请输入房间号');
+        if (!/^[A-Z0-9]{6}$/.test(code)) return show('房间号为 6 位字母数字');
+        show('正在加入 ' + code + '…');
+        BR.net.join(code);
+      }
+
+      el('lb-back').onclick = () => {
+        st.leaving = true;
+        stopRefresh();
+        BR.net.reset();
+        BR.net.close();
+        BR.overlay.hide();
+      };
     },
 
     async rank() {

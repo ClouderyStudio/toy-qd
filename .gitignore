@@ -5,3 +5,4 @@ node_modules/
 .idea/
 .trae/
 backend/test-*.js
+.workbuddy/
