@@ -247,7 +247,79 @@
             `<tr><td>${x.rank}</td><td>${esc(x.nickname)}</td><td>${x.score}</td></tr>`).join('') + '</table>';
       };
       drawTabs(); load();
-      p.querySelectorAll('#r-tabs button').forEach((b) => b.onclick = () => { cur = +b.dataset.b; drawTabs(); load(); });
+      // 页签会被 drawTabs() 重绘，绑定必须挂在容器上做事件委托，
+      // 否则点过一次之后新的按钮全是死元素（点 DoN 后另外两个点不动）。
+      p.querySelector('#r-tabs').onclick = (e) => {
+        const b = e.target.closest('button[data-b]');
+        if (!b) return;
+        cur = +b.dataset.b;
+        drawTabs(); load();
+      };
+    },
+
+    // 开发者面板（入口：主菜单底部版权文字连点 5 次，不对普通玩家暴露）
+    dev() {
+      try { sessionStorage.setItem('br_dev', '1'); } catch (e) { /* 忽略 */ }
+      const p = panel(`<div class="ov-card wide"><h2>开发者面板</h2>
+        <p class="ov-sub">本会话内对局桌面右下角会出现 DEV 按钮。</p>
+        <h3 style="margin:8px 0 4px">存档（金钱 / 胜场基准值）</h3>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <label>故事奖金 <input id="dv-story" size="9"></label>
+          <label>DoN 奖金 <input id="dv-don" size="9"></label>
+          <label>多人胜场 <input id="dv-mp" size="6"></label>
+        </div>
+        <div class="ov-actions"><button id="dv-save" class="pix-btn">保存存档</button></div>
+        <h3 style="margin:8px 0 4px">排行榜测试提交（正式链接内才真正生效）</h3>
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+          <select id="dv-board"><option value="1">故事奖金</option><option value="2">DoN 奖金</option><option value="3">多人胜场</option></select>
+          <input id="dv-score" size="9" placeholder="分数">
+          <button id="dv-submit" class="pix-btn">提交</button>
+        </div>
+        <p id="dv-result" class="ov-sub" style="min-height:14px"></p>
+        <button id="dv-back" class="pix-btn ghost">返回</button>
+      </div>`);
+      const T = BR.toy;
+      p.querySelector('#dv-story').value = T.save.bestStory;
+      p.querySelector('#dv-don').value = T.save.bestDon;
+      p.querySelector('#dv-mp').value = T.save.mpWins;
+      p.querySelector('#dv-save').onclick = async () => {
+        const s = p.querySelector('#dv-story').value, d = p.querySelector('#dv-don').value, m = p.querySelector('#dv-mp').value;
+        await T.set('bestStory', s); await T.set('bestDon', d); await T.set('mpWins', m);
+        p.querySelector('#dv-result').textContent = '存档已保存（云存储同步异步进行）';
+      };
+      p.querySelector('#dv-submit').onclick = async () => {
+        const board = +p.querySelector('#dv-board').value;
+        const score = Math.round(+p.querySelector('#dv-score').value || 0);
+        p.querySelector('#dv-result').textContent = '提交中…';
+        const r = await T.submit(board, score);
+        p.querySelector('#dv-result').textContent = r.ok
+          ? `board ${board} ← ${score} 提交成功`
+          : `提交失败：${r.reason}`;
+      };
+      p.querySelector('#dv-back').onclick = () => BR.overlay.hide();
+    },
+
+    // 对局内开发者快捷操作（DEV 按钮）
+    devGame() {
+      const S = BR.scenes.table;
+      const p = panel(`<div class="ov-card"><h2>DEV · 对局操作</h2>
+        <div class="ov-actions">
+          <button id="dg-end" class="pix-btn">一键随机结束</button>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center;justify-content:center">
+          <input id="dg-money" size="9" placeholder="金额（可负）">
+          <button id="dg-add" class="pix-btn">加钱</button>
+        </div>
+        <p class="ov-sub" id="dg-note"></p>
+        <button id="dg-back" class="pix-btn ghost">关闭</button>
+      </div>`);
+      p.querySelector('#dg-end').onclick = () => { S.devEnd(); BR.overlay.hide(); };
+      p.querySelector('#dg-add').onclick = () => {
+        const n = Math.round(+p.querySelector('#dg-money').value || 0);
+        S.devMoney(n);
+        p.querySelector('#dg-note').textContent = `已请求 ${n >= 0 ? '+' : ''}${n}`;
+      };
+      p.querySelector('#dg-back').onclick = () => BR.overlay.hide();
     },
 
     rules() {

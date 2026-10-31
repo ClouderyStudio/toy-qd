@@ -110,6 +110,21 @@
     if (!net) dir.push(game.act(0, { type: 'don', go }), game.getView(0));
   };
 
+  // ── 开发者功能（DEV 面板调用；联机模式由服务端校验开关）──
+  S.devEnd = function () {
+    if (net) { BR.net.send({ type: 'debug-end' }); return; }
+    try {
+      game.ev = [];
+      if (game.mode === 'mp') game.finish(null);
+      else game.finish({ dead: false, cash: 100000 });
+      dir.push(game.flush(), game.getView(0));
+    } catch (e) { dir.say(e.message, 2); }
+  };
+  S.devMoney = function (n) {
+    if (net) { BR.net.send({ type: 'debug-money', amount: n }); return; }
+    if (game.mode === 'mp' && game.seats[me]) { game.seats[me].money += n; dir.push([], game.getView(me)); }
+  };
+
   S.state = () => ({ dir, me, ui, net });
   S.cancel = () => { ui = { mode: 'idle', sel: -1, foe: -1 }; };
   S.key = (k) => { if (k === 'Escape') S.cancel(); };

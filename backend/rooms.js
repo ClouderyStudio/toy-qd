@@ -24,6 +24,7 @@ const RESERVE_LOBBY_MS = 20 * 1000;  // 大厅里掉线保留座位
 const HEARTBEAT_MS = 15 * 1000;      // 房间心跳（API 侧 TTL 120 秒）
 const POLL_MS = 1500;                // 快速匹配轮询间隔
 const TURN_TIMEOUT_MS = Math.max(10, Number(process.env.TURN_TIMEOUT_SECONDS) || 40) * 1000;
+const DEBUG_TOOLS = !!process.env.TOY_DEBUG;   // 调试通道总开关；不开时 debug-* 消息一律忽略
 
 const rooms = new Map();       // code -> room
 const seats = new Map();       // playerId -> { room, seat }（重连找回座位）
@@ -314,6 +315,34 @@ function action(ws, a) {
   broadcastEvents(room, events);
 }
 
+// ── 开发者通道（TOY_DEBUG=1 才生效）：随机收尾与加钱，用来测排行榜 / 结算 ──
+
+function debugEnd(ws) {
+  if (!DEBUG_TOOLS) return;
+  const room = ws.room;
+  const game = room && room.game;
+  if (!game || game.phase === 'over') return;
+  // 随机收尾：在线座位各发一笔随机奖金，钱最多者胜（finish(null) 自己算 winner）
+  game.ev = [];
+  game.seats.forEach((s) => { if (s.connected) s.money += (1 + Math.floor(Math.random() * 9)) * 10000; });
+  if (game.mode === 'mp') game.finish(null);
+  else game.finish({ dead: false, cash: 100000 });
+  scheduleTurn(room);
+  broadcastEvents(room, game.flush());
+}
+
+function debugMoney(ws, amount) {
+  if (!DEBUG_TOOLS) return;
+  const room = ws.room;
+  if (!room || !room.game) return;
+  const seat = seatOf(room, ws);
+  if (seat < 0) return;
+  const n = Math.max(-1000000000, Math.min(1000000000, Math.round(Number(amount) || 0)));
+  room.game.seats[seat].money += n;
+  // 纯视图同步（没有引擎事件，直接广播一帧新视图）
+  room.players.forEach((p, i) => send(p.ws, { type: 'events', events: [], view: room.game.getView(i), turnLeft: room.turnLeft || 0 }));
+}
+
 /* 主动离开（点返回）：大厅直接走人；对局中按退出处理并立刻通知其他人。 */
 function leave(ws) {
   const room = ws.room;
@@ -553,6 +582,8 @@ function handle(ws, msg) {
     case 'join': return join(ws, msg.code);
     case 'start': return start(ws);
     case 'action': return action(ws, msg.action);
+    case 'debug-end': return debugEnd(ws);
+    case 'debug-money': return debugMoney(ws, msg.amount);
     case 'leave': return leave(ws);
     case 'lobby': return lobby(ws);
     case 'match': return match(ws);

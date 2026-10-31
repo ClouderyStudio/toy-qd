@@ -22,6 +22,13 @@
       b('排行榜', y, () => BR.overlay.rank());
       b('规则', y + 18, () => BR.overlay.rules());
       g.text('非官方同人复刻 · 原作 Mike Klubnika', 160, 168, { align: 'center', size: 5, col: '#5a5850' });
+      // 开发者入口：连点版权文字 5 次（3 秒内），不显示任何提示
+      if (this.taps === undefined) { this.taps = 0; this.lastTap = -10; }
+      BR.hot({ x: 80, y: 162, w: 160, h: 12 }, () => {
+        if (t - this.lastTap > 3) this.taps = 0;
+        this.lastTap = t;
+        if (++this.taps >= 5) { this.taps = 0; BR.overlay.dev(); }
+      });
     }
   };
 

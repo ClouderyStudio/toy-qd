@@ -68,5 +68,8 @@
     // 角落信息
     const sawed = v.sawed ? ' · 已锯短' : '';
     g.text(`STAGE ${v.stage}${v.round > 1 ? ' · R' + v.round : ''}${sawed}`, 316, 2, { align: 'right', size: 5, col: '#706c60' });
+
+    // 开发者入口：主菜单版权文字连点 5 次后本会话内生效
+    try { if (sessionStorage.getItem('br_dev') === '1') BR.button('DEV', 294, 158, 24, 12, () => BR.overlay.devGame(), { size: 5, bg: '#202018', hi: '#404030' }); } catch (e) { /* 隐私模式 */ }
   };
 })();
