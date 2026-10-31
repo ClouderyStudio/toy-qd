@@ -25,8 +25,13 @@ node server.js
 | `PORT` | 监听端口，默认 8080 |
 | `TOY_API_BASE` | ClouderyApi 根地址；留空则「大厅 / 快速匹配」降级，房间号玩法照旧 |
 | `TOY_SERVER_KEY` | 服务端共享密钥，与 API 侧 `Toy:ServerKey` 一致 |
+| `ALLOWED_ORIGINS` | 允许连 WS 的页面来源（逗号分隔，例 `https://toy.example.com`）。留空则不校验；无 Origin 的连接始终放行 |
 
 打开 `http://localhost:8080/` 即可游玩；浏览器客户端会自动连接到同源 WebSocket。
+
+**前端与后端分开部署时**（Toy 只支持纯静态托管，跑不了 Node）：网页上传到静态站，本服务跑在自己的
+服务器上并对外提供 `wss://`，客户端靠 `js/config.js` 的 `wsUrl` 找到它。浏览器只发 WebSocket、
+没有任何 HTTP 请求，因此不需要 CORS；反代需转发 `Upgrade` / `Connection` 头，否则握手失败。
 
 ## 静态文件服务
 

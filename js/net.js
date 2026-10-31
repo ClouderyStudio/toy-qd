@@ -27,9 +27,19 @@
     try { localStorage.setItem(IDENT_KEY, JSON.stringify(v)); } catch (e) { /* 隐私模式：仅内存 */ }
   }
 
+  // 本机 / 局域网调试：允许同源推导（后端和网页在同一台机器上）
+  function isLocalHost() {
+    const h = location.hostname;
+    return h === 'localhost' || h === '127.0.0.1' || h === '[::1]' || h === ''
+      || /^192\.168\./.test(h) || /^10\./.test(h) || /^172\.(1[6-9]|2\d|3[01])\./.test(h)
+      || /\.local$/.test(h);
+  }
+
   function url() {
     if (BR.config.wsUrl) return BR.config.wsUrl;
     if (location.protocol === 'file:') return 'ws://localhost:8080';
+    // 静态托管里后端不在同源：必须显式配置，否则会连到静态站域名上白等。
+    if (!isLocalHost()) throw new Error('联机服务器未配置：请在 js/config.js 填入 wss:// 地址');
     return (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host;
   }
 

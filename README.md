@@ -69,16 +69,52 @@ docs/backend-api.md   后端协议文档
 
 ## 部署
 
-1. 将本仓库部署到 HTTPS 服务器。
-2. 修改 `js/config.js` 中 `wsUrl` 为你的 `wss://` 地址（留空则使用当前页面同源）。
-3. 启动 `backend/server.js`；需要大厅与快速匹配时再配 `TOY_API_BASE` / `TOY_SERVER_KEY`。
+前端与联机后端是**可以分开部署**的两块。Toy 只吃纯静态文件（不能跑 Node），所以要拆成：
 
-Toy 页面为 HTTPS，联机必须使用 `wss://`。
+| 部分 | 放哪 | 说明 |
+|---|---|---|
+| `index.html` / `css/` / `js/` | Toy 静态托管（或任意静态站 / CDN） | 全相对路径引用，可以直接放进子目录 |
+| `backend/server.js` | 自己的服务器（systemd / 1Panel 的 Node 环境） | 常驻进程，对外暴露 `wss://` |
+| `ClouderyApi` | 已有的 `api.cldery.com` | 大厅 / 快速匹配 / 战绩，可选 |
+
+步骤：
+
+1. 把 `js/config.js` 的 `wsUrl` 改成 `'wss://你的联机域名'`（例 `wss://game.cldery.com`）。
+   留空只在「网页和后端同机同源」时成立；页面不在本机又留空会直接提示「联机服务器未配置」。
+2. 上传 `index.html` / `css/` / `js/` 到 Toy。
+3. 服务器上 `cd backend && npm install`，带环境变量启动：
+   ```bash
+   PORT=8080 \
+   TOY_API_BASE=https://api.cldery.com \
+   TOY_SERVER_KEY=<与 API 的 Toy:ServerKey 一致> \
+   ALLOWED_ORIGINS=<Toy 页面来源> \
+   node server.js
+   ```
+   建议用 systemd（`Restart=always`）或 1Panel 的 Node 项目托管，别用 `nohup` 挂着。
+4. 反代（Nginx / OpenResty / 1Panel 网站）必须转发 WebSocket 升级头，否则握手 400：
+   ```nginx
+   location / {
+     proxy_pass http://127.0.0.1:8080;
+     proxy_http_version 1.1;
+     proxy_set_header Upgrade $http_upgrade;
+     proxy_set_header Connection "upgrade";
+     proxy_set_header Host $host;
+     proxy_read_timeout 300s;
+   }
+   ```
+5. 证书用公网 CA（Toy 里是 HTTPS 页面，`ws://` 会被当混合内容拦掉，自签证书在 App 内置 WebView 里通常也过不去）。
+
+### 分开部署要注意的点
+
+- **跨域**：浏览器只连 WebSocket、不发任何 HTTP 请求，所以不存在 CORS 预检问题；WS 本身不受同源策略限制。`ALLOWED_ORIGINS` 用来防止别人把自己的网页挂到你的联机服务器上白嫖 API 配额，留空则不校验。
+- **空闲断连**：反向代理与 CDN 一般 60~100 秒掐掉无数据的连接。服务端已每 30 秒 `ping` 一次保活，并把半开连接清掉；即使被掐，客户端也会自动重连带令牌回原座位。
+- **单实例**：房间与对局状态在 Node 内存里，只能跑一个进程。要横向扩容得先把房间状态搬出去（Redis），当前不做。
+- **更新方式变两段**：前端改完重新上传 Toy，后端改完重启 Node 进程，互不影响。改 `js/config.js` 后记得让 CDN 缓存失效或强刷。
 
 ### 与 ClouderyApi 的关系
 
 ```
-浏览器 ──同源 ws/http──> backend/server.js ──X-Toy-Server-Key──> ClouderyApi /toy/*
+浏览器 ──wss（可跨域）──> backend/server.js ──X-Toy-Server-Key──> ClouderyApi /toy/*
                               │                                      │
                         权威对局（JS 引擎）                    玩家档案 / 房间目录 / 匹配等待池（MySQL）
 ```
@@ -90,5 +126,6 @@ Toy 页面为 HTTPS，联机必须使用 `wss://`。
 ## 注意事项
 
 - 奖金计算公式为近似值，多人模式各关血量为推测值。
-- Toy 平台是否允许外部 WebSocket 连接需自行确认。
+- Toy 平台是否允许外部 WebSocket 连接需自行确认（页面侧 CSP `connect-src` 若被限制，需要平台放行你的联机域名）。
 - 房间与座位在 Node 进程内存里：进程重启后房间全部消失，玩家需要重新开房。
+- 联机域名需公网可访问且已完成备案（Toy 面向国内用户，未备案域名通常会被拦）。

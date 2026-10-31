@@ -10,6 +10,12 @@ const ROOT = path.resolve(__dirname, '..');
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8' };
 const MAX_MSG = 2048;        // 单条消息最大字节
 const RATE = 20;             // 每秒最多消息数
+const PING_MS = 30000;       // 保活间隔：反代 / CDN 一般 60~100 秒掐空闲连接
+
+// 前端静态站和后端不同域时（例如前端在 Toy、后端在自己服务器），浏览器是跨域连 WS。
+// 设置 ALLOWED_ORIGINS 后只放行名单内的页面；不设则不限（本地调试 / 同源部署）。
+// 无 Origin 的连接（Node 脚本、服务端调用）一律放行 —— Origin 本来就可以被非浏览器伪造。
+const ALLOWED = (process.env.ALLOWED_ORIGINS || '').split(',').map((s) => s.trim()).filter(Boolean);
 
 const server = http.createServer((req, res) => {
   let p = decodeURIComponent(req.url.split('?')[0]);
@@ -25,10 +31,21 @@ const server = http.createServer((req, res) => {
   });
 });
 
-const wss = new WebSocketServer({ server, maxPayload: MAX_MSG });
+const wss = new WebSocketServer({
+  server,
+  maxPayload: MAX_MSG,
+  verifyClient: (info, done) => {
+    if (!ALLOWED.length) return done(true);
+    const origin = info.origin || info.req.headers.origin || '';
+    if (!origin || ALLOWED.includes(origin)) return done(true);
+    done(false, 403, 'Origin not allowed');
+  }
+});
 
 wss.on('connection', (ws) => {
   ws.room = null;
+  ws.isAlive = true;
+  ws.on('pong', () => { ws.isAlive = true; });
   let count = 0, since = Date.now();
   ws.on('message', (raw) => {
     const now = Date.now();
@@ -43,6 +60,19 @@ wss.on('connection', (ws) => {
   ws.on('close', () => rooms.disconnect(ws));
 });
 
+// 大厅里挂机时可能几十秒没有一条消息，Nginx / Cloudflare / EdgeOne 会按空闲把连接掐掉。
+// 服务器主动 ping：既保活，也能把半开连接（手机切网、进程被冻）清出去。
+const keepalive = setInterval(() => {
+  wss.clients.forEach((ws) => {
+    if (ws.isAlive === false) return ws.terminate();
+    ws.isAlive = false;
+    ws.ping();
+  });
+}, PING_MS);
+keepalive.unref();
+
 server.listen(PORT, () => {
   console.log(`[Server] 恶魔轮盘已启动 http://localhost:${PORT}  (WebSocket 同端口)`);
+  console.log(`[Server] 联机 API：${process.env.TOY_API_BASE ? process.env.TOY_API_BASE : '未配置（降级为房间号模式）'}`);
+  console.log(`[Server] 允许的页面来源：${ALLOWED.length ? ALLOWED.join(', ') : '不限'}`);
 });
