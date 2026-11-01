@@ -43,5 +43,28 @@ elif grep -qE "^\s*wsUrl:\s*''" js/config.js; then
   echo "    要上线联机请带上 BR_WS_URL=wss://你的域名/路径 再跑。"
 fi
 
+# 关注解锁：作者 B站 UID，跳作者主页引导关注用。
+FOLLOW_MID="${BR_FOLLOW_MID:-}"
+if [ -n "$FOLLOW_MID" ]; then
+  case "$FOLLOW_MID" in
+    ''|*[!0-9]*) echo "❌ BR_FOLLOW_MID 必须是纯数字 UID" >&2; exit 1 ;;
+  esac
+  BR_FILE="$OUT/js/config.js" BR_FOLLOW_MID="$FOLLOW_MID" node -e '
+    const fs = require("fs");
+    const file = process.env.BR_FILE;
+    const mid = process.env.BR_FOLLOW_MID;
+    const src = fs.readFileSync(file, "utf8");
+    if (!/followMid:\s*\x27\x27/.test(src)) {
+      console.error("config.js 里没找到空的 followMid: \x27\x27 —— 是不是已经被改过了？");
+      process.exit(1);
+    }
+    fs.writeFileSync(file, src.replace(/followMid:\s*\x27\x27/, "followMid: \x27" + mid + "\x27"));
+  '
+  echo "关注解锁 UID 已注入：$FOLLOW_MID"
+elif grep -qE "^\s*followMid:\s*''" js/config.js; then
+  echo "⚠️  followMid 仍是空值：「去关注」按钮会不可用，只剩文字提示。"
+  echo "    要启用跳转请带上 BR_FOLLOW_MID=你的UID 再跑。"
+fi
+
 echo "已生成 $OUT/（$(find "$OUT" -type f | wc -l | tr -d ' ') 个文件，$(du -sh "$OUT" | cut -f1)）"
 echo "发布：toy update 50149917199360 $OUT --icon assets/icon.png --poster assets/icon.png --yes"

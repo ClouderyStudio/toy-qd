@@ -13,5 +13,6 @@
  */
 window.BR = window.BR || {};
 window.BR.config = {
-  wsUrl: ''   // 构建时由 BR_WS_URL 注入，例：'wss://你的域名/toy-mp'
+  wsUrl: '',     // 构建时由 BR_WS_URL 注入，例：'wss://你的域名/toy-mp'
+  followMid: ''  // 构建时由 BR_FOLLOW_MID 注入（作者 B站 UID），「关注解锁联机」跳作者主页用
 };

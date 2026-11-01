@@ -81,6 +81,33 @@
       } catch (e) { return null; }
     },
 
+    // 返回 { ok, kind, reason }。ok=true 放行；kind: dev（开发者旁路）| followed | unfollow | env | error。
+    // 容错策略（已拍板）：一律拦截 —— 检测失败或环境不支持都不放行，宁严勿松。
+    async followGate() {
+      // 开发者通道已验证密码的会话直接放行，方便自己测试联机
+      try { if (sessionStorage.getItem('br_dev_ok') === '1') return { ok: true, kind: 'dev' }; } catch (e) { /* 忽略 */ }
+      if (!(await has('getAuthorRelation'))) {
+        return { ok: false, kind: 'env', reason: '当前环境无法验证关注状态：请在 B站 App 内打开本页面' };
+      }
+      try {
+        const r = await call(() => T().getAuthorRelation());
+        if (r && r.status === 'ok') {
+          return (r.data && r.data.isFollowing) ? { ok: true, kind: 'followed' } : { ok: false, kind: 'unfollow' };
+        }
+        return { ok: false, kind: 'error', reason: '暂时无法确认关注状态，稍后再试' };
+      } catch (e) {
+        return { ok: false, kind: 'error', reason: '关注状态检测失败：' + ((e && (e.code || e.message)) || '未知错误') };
+      }
+    },
+
+    // 跳作者主页引导关注（SDK 要求用户手势触发，须在按钮点击里调用）。返回是否成功发起。
+    async goFollow() {
+      const mid = String((BR.config || {}).followMid || '').trim();
+      if (!mid || !T() || !T().navigate) return false;
+      try { await T().navigate({ type: 'space', id: mid }); return true; }
+      catch (e) { return false; }
+    },
+
     // 返回 { ok, msg }。平台外没有检测能力时放行；平台内 unavailable 不算通过
     async checkName(text) {
       if (!(await has('checkInputSafety'))) return { ok: true };

@@ -229,6 +229,42 @@
       };
     },
 
+    // 关注解锁门禁：先查关注状态，过了才进大厅；没过给引导面板
+    async gateLobby() {
+      let r;
+      try { r = await BR.toy.followGate(); }
+      catch (e) { r = { ok: false, kind: 'error', reason: '关注状态检测异常，稍后再试' }; }
+      if (r.ok) return this.lobby();
+      this.followGate(r);
+    },
+
+    followGate(r) {
+      const p = panel(`
+        <div class="ov-card">
+          <h2>多人联机</h2>
+          <p class="ov-sub">关注作者后解锁</p>
+          ${r.kind === 'unfollow'
+            ? '<p>给作者点个关注，就能和朋友联机对战了。</p>'
+            : `<p class="ov-warn">${esc(r.reason || '暂时无法确认关注状态')}</p>`}
+          <p class="ov-msg" id="fg-msg"></p>
+          <div class="ov-actions">
+            <button id="fg-go" class="pix-btn">去关注</button>
+            <button id="fg-retry" class="pix-btn ghost">我关注了，重新检测</button>
+            <button id="fg-back" class="pix-btn ghost">返回</button>
+          </div>
+        </div>`);
+      const msg = p.querySelector('#fg-msg');
+      const show = (m) => { msg.textContent = m; };
+      p.querySelector('#fg-go').onclick = async () => {
+        show('正在打开主页…');
+        const ok = await BR.toy.goFollow();
+        if (ok) show('关注后回到本页面，点「重新检测」即可进入联机');
+        else show('跳转失败：请在 B站 App 内搜索作者主页');
+      };
+      p.querySelector('#fg-retry').onclick = () => { BR.overlay.hide(); this.gateLobby(); };
+      p.querySelector('#fg-back').onclick = () => BR.overlay.hide();
+    },
+
     async rank() {
       const p = panel(`<div class="ov-card wide"><h2>排行榜</h2><div id="r-tabs"></div><div id="r-body"></div><button id="r-back" class="pix-btn ghost">返回</button></div>`);
       p.querySelector('#r-back').onclick = () => BR.overlay.hide();

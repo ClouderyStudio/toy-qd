@@ -18,7 +18,7 @@
       const online = BR.net.configured();
       b('开始游戏', 84, () => BR.go('bathroom'));
       let y = 102;
-      if (online) { b('多人联机', y, () => BR.overlay.lobby()); y += 18; }
+      if (online) { b('多人联机', y, () => BR.overlay.gateLobby()); y += 18; }
       b('排行榜', y, () => BR.overlay.rank());
       b('规则', y + 18, () => BR.overlay.rules());
       g.text('非官方同人复刻 · 原作 Mike Klubnika', 160, 168, { align: 'center', size: 5, col: '#5a5850' });
