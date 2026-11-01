@@ -14,12 +14,12 @@
       g.text('BUCKSHOT ROULETTE', 160, 26, { align: 'center', size: 14, col: '#c02020' });
       g.text('恶 魔 轮 盘', 160, 46, { align: 'center', size: 9, col: '#d8d4c0' });
       const b = (label, y, fn) => BR.button(label, 120, y, 80, 14, fn, { size: 7 });
-      // 左上：制作人署名（避开标题行 y19-33，等距排版）；左下：版本号
-      g.text('制作人', 66, 34, { size: 5, col: '#c04040' });
-      g.text('云术工作室', 66, 45, { size: 6, col: '#d8d4c0' });
-      g.text('云竹', 66, 56, { size: 5, col: '#a8a490' });
-      g.text('胖头鱼不吃鱼', 66, 67, { size: 5, col: '#a8a490' });
-      g.text(String((BR.config || {}).version || ''), 66, 156, { size: 5, col: '#6a6860' });
+      // 左上角贴边：制作人署名（等距 11px）；左下角贴边：版本号
+      g.text('制作人', 6, 6, { size: 5, col: '#c04040' });
+      g.text('云术工作室', 6, 17, { size: 6, col: '#d8d4c0' });
+      g.text('云竹', 6, 29, { size: 5, col: '#a8a490' });
+      g.text('胖头鱼不吃鱼', 6, 40, { size: 5, col: '#a8a490' });
+      g.text(String((BR.config || {}).version || ''), 6, 169, { size: 5, col: '#6a6860' });
       // 联机地址没配时（纯静态发布、后端还没上线）不摆这个入口，免得玩家点了只看到报错。
       const online = BR.net.configured();
       b('开始游戏', 84, () => BR.go('bathroom'));
