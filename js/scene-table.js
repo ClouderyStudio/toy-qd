@@ -34,9 +34,11 @@
     }
     S.mode = o.mode || 'mp';
     BR.sfx.drone(true);
+    BR.sfx.bgm(true);
   };
   S.exit = function () {
     BR.sfx.drone(false);
+    BR.sfx.bgm(false);
     if (net) {
       BR.net.onEvents = BR.net.onError = BR.net.onClosed = null;
       BR.net.onResume = BR.net.onStatus = BR.net.onNotice = null;

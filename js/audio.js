@@ -3,6 +3,11 @@
   const BR = window.BR;
   let ac = null, master = null, drone = null;
   let noiseBuf = null;
+  // ── 程序化 BGM：D 小调低音脉冲 + 时钟滴答 + 不协和 swell，4 小节循环 ──
+  let bgmGain = null, bgmTimer = null, bgmStep = 0, bgmNext = 0;
+  const BGM_BPM = 92;
+  const BGM_BASS = [38, 38, 41, 36];   // D2 D2 F2 C2，每小节一个根音
+  const mf = (m) => 440 * Math.pow(2, (m - 69) / 12);
 
   function ctx() {
     if (!ac) {
@@ -72,6 +77,65 @@
       } else if (!on && drone) {
         drone.o.stop(); drone.o2.stop(); drone = null;
       }
+    },
+
+    // 紧张 BGM（对局场景用）：lookahead 调度器，92 BPM 四小节循环。
+    // 三层：低音脉冲（D-D-F-C 走向）、八分音符时钟滴答、每 4 小节一次 D+G# 三全音 swell。
+    bgm(on) {
+      const c = ctx(); if (!c) return;
+      if (on && !bgmTimer) {
+        if (!bgmGain) { bgmGain = c.createGain(); bgmGain.gain.value = 0.9; bgmGain.connect(master); }
+        bgmStep = 0;
+        bgmNext = c.currentTime + 0.1;
+        bgmTimer = setInterval(bgmSchedule, 25);
+      } else if (!on && bgmTimer) {
+        clearInterval(bgmTimer); bgmTimer = null;
+      }
     }
   };
+
+  function bgmSchedule() {
+    const c = ac; if (!c) return;
+    const eighth = 60 / BGM_BPM / 2;
+    while (bgmNext < c.currentTime + 0.15) {
+      const t = bgmNext, s = bgmStep % 32, bar = (s / 8) | 0;
+      // 低音脉冲：每拍一个短促 sawtooth，低通压暗
+      if (s % 2 === 0) {
+        const o = c.createOscillator(); o.type = 'sawtooth';
+        o.frequency.value = mf(BGM_BASS[bar]);
+        const fl = c.createBiquadFilter(); fl.type = 'lowpass'; fl.frequency.value = 320;
+        const gn = c.createGain();
+        gn.gain.setValueAtTime(0.0001, t);
+        gn.gain.exponentialRampToValueAtTime(0.15, t + 0.012);
+        gn.gain.exponentialRampToValueAtTime(0.0001, t + 0.3);
+        o.connect(fl); fl.connect(gn); gn.connect(bgmGain);
+        o.start(t); o.stop(t + 0.34);
+      }
+      // 时钟滴答：每个八分音符一次，强弱交替（每小节第一拍最响）
+      const src = c.createBufferSource(); src.buffer = noiseBuf;
+      const bf = c.createBiquadFilter(); bf.type = 'bandpass';
+      bf.frequency.value = s % 2 ? 5200 : 3900;
+      const tg = c.createGain();
+      tg.gain.setValueAtTime(s % 8 === 0 ? 0.05 : (s % 2 === 0 ? 0.03 : 0.018), t);
+      tg.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
+      src.connect(bf); bf.connect(tg); tg.connect(bgmGain);
+      src.start(t); src.stop(t + 0.08);
+      // 每 4 小节第 4 拍起：D4+G#4 三全音 swell（缓慢上滑制造不安感）
+      if (s === 28) {
+        [62, 68].forEach((m) => {
+          const o = c.createOscillator(); o.type = 'triangle';
+          o.frequency.setValueAtTime(mf(m), t);
+          o.frequency.linearRampToValueAtTime(mf(m) * 1.012, t + 1.8);
+          const gn = c.createGain();
+          gn.gain.setValueAtTime(0.0001, t);
+          gn.gain.exponentialRampToValueAtTime(0.04, t + 1.3);
+          gn.gain.exponentialRampToValueAtTime(0.0001, t + 2.6);
+          o.connect(gn); gn.connect(bgmGain);
+          o.start(t); o.stop(t + 2.7);
+        });
+      }
+      bgmStep++;
+      bgmNext += eighth;
+    }
+  }
 })();
