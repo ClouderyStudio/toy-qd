@@ -265,6 +265,37 @@
       p.querySelector('#fg-back').onclick = () => BR.overlay.hide();
     },
 
+    // 设置：音量滑条（实时生效，change 时存档走云同步）
+    settings() {
+      const cur = ((BR.toy || {}).save || {}).vol != null ? Math.round(+BR.toy.save.vol) : 100;
+      const p = panel(`
+        <div class="ov-card">
+          <h2>设置</h2>
+          <p class="ov-sub">音量 <b id="st-vol-n">${cur}</b>%</p>
+          <input id="st-vol" type="range" min="0" max="100" step="5" value="${cur}">
+          <p class="ov-msg" id="st-msg"></p>
+          <div class="ov-actions">
+            <button id="st-back" class="pix-btn ghost">返回</button>
+          </div>
+        </div>`);
+      const rng = p.querySelector('#st-vol');
+      const num = p.querySelector('#st-vol-n');
+      const msgEl = p.querySelector('#st-msg');
+      let msgTimer = null;
+      const show = (m) => { msgEl.textContent = m; };
+      rng.addEventListener('input', () => {
+        num.textContent = BR.sfx.setVolume(rng.value);
+      });
+      rng.addEventListener('change', () => {
+        const v = BR.sfx.setVolume(rng.value);
+        BR.toy.set('vol', v);
+        show('音量已保存');
+        clearTimeout(msgTimer);
+        msgTimer = setTimeout(() => show(''), 1500);
+      });
+      p.querySelector('#st-back').onclick = () => BR.overlay.hide();
+    },
+
     async rank() {
       const p = panel(`<div class="ov-card wide"><h2>排行榜</h2><div id="r-tabs"></div><div id="r-body"></div><button id="r-back" class="pix-btn ghost">返回</button></div>`);
       p.querySelector('#r-back').onclick = () => BR.overlay.hide();

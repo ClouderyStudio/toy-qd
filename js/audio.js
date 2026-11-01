@@ -3,6 +3,7 @@
   const BR = window.BR;
   let ac = null, master = null, drone = null;
   let noiseBuf = null;
+  let vol = 1.0;   // 主音量 0~1，设置面板可调，存档键 vol（0~100）
   // ── 程序化 BGM：D 小调低音脉冲 + 时钟滴答 + 不协和 swell，4 小节循环 ──
   let bgmGain = null, bgmTimer = null, bgmStep = 0, bgmNext = 0;
   const BGM_BPM = 92;
@@ -14,7 +15,11 @@
       const AC = window.AudioContext || window.webkitAudioContext;
       if (!AC) return null;
       ac = new AC();
-      master = ac.createGain(); master.gain.value = 0.6; master.connect(ac.destination);
+      // 压限器兜底：音量开满时 SFX+BGM 叠加也不炸
+      const comp = ac.createDynamicsCompressor();
+      comp.threshold.value = -10; comp.ratio.value = 6;
+      comp.connect(ac.destination);
+      master = ac.createGain(); master.gain.value = vol; master.connect(comp);
       noiseBuf = ac.createBuffer(1, ac.sampleRate, ac.sampleRate);
       const d = noiseBuf.getChannelData(0);
       for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
@@ -51,6 +56,18 @@
 
   BR.sfx = {
     unlock() { const c = ctx(); if (c && c.state === 'suspended') c.resume(); },
+
+    // 主音量 0~100；读档恢复用 applySaved
+    setVolume(v) {
+      v = Math.max(0, Math.min(100, Math.round(+v || 0)));
+      vol = v / 100;
+      if (master) master.gain.value = vol;
+      return v;
+    },
+    applySaved() {
+      const s = (BR.toy || {}).save || {};
+      if (s.vol != null) this.setVolume(s.vol);
+    },
     shot() { noise(0.6, 1800, 1.0); tone(70, 0.4, 0.8, 'sine', 30); },
     click() { noise(0.04, 4000, 0.5, 'highpass'); },
     rack() { noise(0.08, 2500, 0.4, 'bandpass'); setTimeout(() => noise(0.1, 1500, 0.5, 'bandpass'), 140); },
@@ -84,7 +101,7 @@
     bgm(on) {
       const c = ctx(); if (!c) return;
       if (on && !bgmTimer) {
-        if (!bgmGain) { bgmGain = c.createGain(); bgmGain.gain.value = 0.9; bgmGain.connect(master); }
+        if (!bgmGain) { bgmGain = c.createGain(); bgmGain.gain.value = 1.0; bgmGain.connect(master); }
         bgmStep = 0;
         bgmNext = c.currentTime + 0.1;
         bgmTimer = setInterval(bgmSchedule, 25);
@@ -106,7 +123,7 @@
         const fl = c.createBiquadFilter(); fl.type = 'lowpass'; fl.frequency.value = 320;
         const gn = c.createGain();
         gn.gain.setValueAtTime(0.0001, t);
-        gn.gain.exponentialRampToValueAtTime(0.15, t + 0.012);
+        gn.gain.exponentialRampToValueAtTime(0.3, t + 0.012);
         gn.gain.exponentialRampToValueAtTime(0.0001, t + 0.3);
         o.connect(fl); fl.connect(gn); gn.connect(bgmGain);
         o.start(t); o.stop(t + 0.34);
@@ -116,7 +133,7 @@
       const bf = c.createBiquadFilter(); bf.type = 'bandpass';
       bf.frequency.value = s % 2 ? 5200 : 3900;
       const tg = c.createGain();
-      tg.gain.setValueAtTime(s % 8 === 0 ? 0.05 : (s % 2 === 0 ? 0.03 : 0.018), t);
+      tg.gain.setValueAtTime(s % 8 === 0 ? 0.1 : (s % 2 === 0 ? 0.06 : 0.036), t);
       tg.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
       src.connect(bf); bf.connect(tg); tg.connect(bgmGain);
       src.start(t); src.stop(t + 0.08);
@@ -128,7 +145,7 @@
           o.frequency.linearRampToValueAtTime(mf(m) * 1.012, t + 1.8);
           const gn = c.createGain();
           gn.gain.setValueAtTime(0.0001, t);
-          gn.gain.exponentialRampToValueAtTime(0.04, t + 1.3);
+          gn.gain.exponentialRampToValueAtTime(0.08, t + 1.3);
           gn.gain.exponentialRampToValueAtTime(0.0001, t + 2.6);
           o.connect(gn); gn.connect(bgmGain);
           o.start(t); o.stop(t + 2.7);

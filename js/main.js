@@ -71,6 +71,7 @@
       point(e);
       BR.touch = e.pointerType === 'touch';
       BR.sfx.unlock();
+      BR.sfx.bgm(true);   // BGM 全局常驻：主页/对局连续播放，手势后才能出声（浏览器策略）
       BR.toy && BR.toy.firstGesture();
       for (let i = hot.length - 1; i >= 0; i--) {
         if (inside(hot[i].r)) { hot[i].onClick(); return; }

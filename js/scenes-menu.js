@@ -18,9 +18,10 @@
       const online = BR.net.configured();
       b('开始游戏', 84, () => BR.go('bathroom'));
       let y = 102;
-      if (online) { b('多人联机', y, () => BR.overlay.gateLobby()); y += 18; }
+      if (online) { b('多人联机', y, () => BR.overlay.gateLobby()); y += 16; }
       b('排行榜', y, () => BR.overlay.rank());
-      b('规则', y + 18, () => BR.overlay.rules());
+      b('规则', y + 16, () => BR.overlay.rules());
+      b('设置', y + 32, () => BR.overlay.settings());
       g.text('非官方同人复刻 · 原作 Mike Klubnika', 160, 168, { align: 'center', size: 5, col: '#5a5850' });
       // 开发者入口：连点版权文字 5 次（3 秒内），不显示任何提示
       if (this.taps === undefined) { this.taps = 0; this.lastTap = -10; }

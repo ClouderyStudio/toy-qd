@@ -25,7 +25,7 @@
     throw new Error('rate limited');
   }
 
-  const save = { donUnlocked: '0', bestStory: '0', bestDon: '0', mpWins: '0' };
+  const save = { donUnlocked: '0', bestStory: '0', bestDon: '0', mpWins: '0', vol: '100' };
 
   BR.toy = {
     profile: null,
@@ -36,6 +36,8 @@
       if (await has('getCloudStorage')) {
         try { Object.assign(save, await call(() => T().getCloudStorage(Object.keys(save)))); } catch (e) { /* 用本地 */ }
       }
+      // 云存档里的音量偏好（含云同步覆盖本地后的最终值）
+      BR.sfx && BR.sfx.applySaved && BR.sfx.applySaved();
     },
 
     async set(k, val) {

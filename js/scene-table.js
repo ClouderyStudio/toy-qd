@@ -34,11 +34,11 @@
     }
     S.mode = o.mode || 'mp';
     BR.sfx.drone(true);
+    // BGM 全局常驻（首次手势即启动，主页/对局连续播放），这里只在没起时兜底
     BR.sfx.bgm(true);
   };
   S.exit = function () {
     BR.sfx.drone(false);
-    BR.sfx.bgm(false);
     if (net) {
       BR.net.onEvents = BR.net.onError = BR.net.onClosed = null;
       BR.net.onResume = BR.net.onStatus = BR.net.onNotice = null;
