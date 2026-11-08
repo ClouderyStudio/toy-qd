@@ -68,6 +68,11 @@
       case 'closed': BR.net.onClosed && BR.net.onClosed(msg.reason); break;
       case 'offline-left': BR.net.onNotice && BR.net.onNotice(`${msg.name} 掉线超时，已离开`); break;
       case 'notice': BR.net.onNotice && BR.net.onNotice(msg.text); break;
+      case 'notice-info':
+        // 服务器维护公告（服务端改 notice.json 即时下发，也会在握手后带一份）
+        BR.net.notice = msg.notice || null;
+        BR.net.onNoticeInfo && BR.net.onNoticeInfo(BR.net.notice);
+        break;
       case 'debug-auth': if (pendingAuth) { const p = pendingAuth; pendingAuth = null; p({ ok: true }); } break;
       case 'error':
         if (pendingAuth) { const p = pendingAuth; pendingAuth = null; p({ ok: false, reason: msg.message }); }
@@ -120,6 +125,11 @@
   const net = BR.net = {
     onRoom: null, onStart: null, onEvents: null, onError: null, onClosed: null,
     onRooms: null, onMatch: null, onWaitingHost: null, onResume: null, onStatus: null, onNotice: null,
+    onNoticeInfo: null,
+    notice: null,   // 最近一次收到的维护公告 { text, level, at?, until?, block }
+
+    /** 主动要一次公告（进大厅时调用，省得等下一次广播） */
+    askNotice() { if (net.connected()) net.send({ type: 'notice' }); },
 
     connected: () => !!ws && ws.readyState === 1,
     identity: () => ident || loadIdent(),

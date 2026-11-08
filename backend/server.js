@@ -96,6 +96,9 @@ wss.on('connection', (ws) => {
   ws.room = null;
   ws.isAlive = true;
   ws.on('pong', () => { ws.isAlive = true; });
+  // 启动时把当前公告给到新连接（握手成功后会再带一份，这里先兜底）
+  const n = require('./notice.js').current();
+  if (n) ws.send(JSON.stringify({ type: 'notice-info', notice: n, block: !!n.block }));
   let count = 0, since = Date.now();
   ws.on('message', (raw) => {
     const now = Date.now();
@@ -112,6 +115,9 @@ wss.on('connection', (ws) => {
 
 // 大厅里挂机时可能几十秒没有一条消息，Nginx / Cloudflare / EdgeOne 会按空闲把连接掐掉。
 // 服务器主动 ping：既保活，也能把半开连接（手机切网、进程被冻）清出去。
+// 维护公告要推给所有连接（包括大厅里没进房的），rooms 拿不到全量列表，这里注册provider
+rooms.setConnectionProvider(() => [...wss.clients]);
+
 const keepalive = setInterval(() => {
   wss.clients.forEach((ws) => {
     if (ws.isAlive === false) return ws.terminate();

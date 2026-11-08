@@ -17,6 +17,7 @@ require('../js/engine-items.js');
 require('../js/ai.js');   // 超时代打用的决策函数（只用视图公开信息，不偷看子弹）
 const api = require('./api.js');
 const store = require('./store.js');
+const notice = require('./notice.js');
 
 const CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const MAX_PLAYERS = 4;
@@ -186,6 +187,9 @@ async function hello(ws, msg) {
 function sendYou(ws) {
   const p = ws.player;
   send(ws, { type: 'you', playerId: p.id, token: p.token, nickname: p.nickname, online: api.enabled() });
+  // 握手后立刻带一份当前公告：新连进来的人不用等下一次轮询就知道在维护
+  const n = notice.current();
+  send(ws, { type: 'notice-info', notice: n, block: !!(n && n.block) });
 }
 
 /* 带着令牌回来：把保留的座位换成当前连接，并把当前局面补发一遍。 */
@@ -315,6 +319,12 @@ function start(ws) {
   if (!room || room.game) return;
   if (room.players[0].playerId !== ws.player.id) return send(ws, { type: 'error', message: '只有房主可以开始' });
   if (room.players.length < 2) return send(ws, { type: 'error', message: '至少需要 2 名玩家' });
+
+  // 维护中禁止开新局。已经在局内的对局不受影响（这里只管"开始一局新的"）。
+  const n = notice.current();
+  if (n && n.block) {
+    return send(ws, { type: 'error', message: `服务器维护中，暂时无法开始新对局${n.text ? '：' + n.text : ''}` });
+  }
 
   room.game = new BR.Game('mp', room.players.map((p) => p.name));
   const events = room.game.start();
@@ -646,6 +656,43 @@ const heartbeat = setInterval(() => {
 }, HEARTBEAT_MS);
 heartbeat.unref();
 
+// ── 维护公告：定期比对文件，有变化就推给所有在线连接 ─────────────────────
+// 玩家正打到一半时运维改了公告，也能立刻收到，不用重连。
+// 比对 mtime 而不是每次全量广播，避免每 5 秒给所有人发一遍。
+
+let lastNoticeKey = null;
+
+// 维护公告要能推给所有人（含大厅里没进房的），rooms 只知道自己管的房间，
+// 所以由 server.js 注册一个"取全部连接"的函数。
+let connProvider = () => [];
+function setConnectionProvider(fn) { if (typeof fn === 'function') connProvider = fn; }
+
+function broadcastNotice() {
+  const n = notice.current();
+  const key = n ? JSON.stringify(n) : '';
+  if (key === lastNoticeKey) return;
+  lastNoticeKey = key;
+  const msg = { type: 'notice-info', notice: n, block: !!(n && n.block) };
+  const targets = new Set(clients());
+  connProvider().forEach((ws) => targets.add(ws));
+  targets.forEach((ws) => send(ws, msg));
+  if (n) console.log(`[notice] 已下发公告（${n.level}）：${n.text}`);
+  else console.log('[notice] 公告已清除');
+}
+
+const noticeTimer = setInterval(broadcastNotice, 5000);
+noticeTimer.unref();
+
+/* 所有当前已握手、且 rooms 自己知道的连接（房间里 / 匹配队列 / 等房主）。
+ * 大厅里纯挂着的连接由 server.js 的 provider 补上。 */
+function clients() {
+  const out = new Set();
+  rooms.forEach((room) => room.players.forEach((p) => { if (p.ws) out.add(p.ws); }));
+  queue.forEach((e) => { if (e.ws) out.add(e.ws); });
+  waitingHost.forEach((list) => list.forEach((e) => { if (e.ws) out.add(e.ws); }));
+  return [...out];
+}
+
 // ── 入口 ────────────────────────────────────────────────────────────────
 
 function handle(ws, msg) {
@@ -663,8 +710,16 @@ function handle(ws, msg) {
     case 'lobby': return lobby(ws);
     case 'match': return match(ws);
     case 'cancel-match': return cancelMatch(ws);
+    case 'notice': {
+      // 客户端主动拉一次当前公告（进大厅时用，不用等广播）
+      const n = notice.current();
+      return send(ws, { type: 'notice-info', notice: n, block: !!(n && n.block) });
+    }
     default: return send(ws, { type: 'error', message: '未知消息' });
   }
 }
 
-module.exports = { handle, leave, disconnect, rooms, cleanName, seats };
+module.exports = {
+  handle, leave, disconnect, rooms, cleanName, seats,
+  setConnectionProvider, broadcastNotice
+};

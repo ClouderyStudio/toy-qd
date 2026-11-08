@@ -56,6 +56,7 @@
         <div class="ov-card wide">
           <h2>多人联机</h2>
           <p class="ov-sub">2 ~ 4 人对战</p>
+          <div id="lb-notice"></div>
           <div id="lb-ident">
             <div class="ov-row">
               <input id="lb-name" maxlength="16" placeholder="你的名字" value="${esc(st.name)}">
@@ -86,6 +87,22 @@
       const el = (id) => p.querySelector('#' + id);
       const msg = el('lb-msg');
       const show = (m) => { msg.textContent = m; };
+
+      // 维护公告：连上之后才有，所以先渲染一次再持续刷新
+      const renderNotice = (n) => {
+        const box = el('lb-notice');
+        if (!box) return;
+        if (!n) { box.innerHTML = ''; return; }
+        const cls = n.level === 'down' ? 'down' : (n.level === 'warn' ? 'warn' : 'info');
+        box.innerHTML = `<div class="ov-notice ${cls}">
+          <b>${n.level === 'down' ? '维护中' : (n.level === 'warn' ? '维护提醒' : '公告')}</b>
+          <span>${esc(n.text)}</span>
+          ${n.block ? '<em>暂时无法开始新对局</em>' : ''}
+        </div>`;
+      };
+      renderNotice(BR.net.notice || null);
+      const prevNoticeCb = BR.net.onNoticeInfo;
+      BR.net.onNoticeInfo = (n) => { if (prevNoticeCb) prevNoticeCb(n); renderNotice(n); };
 
       function renderRooms() {
         const box = el('lb-rooms');
@@ -195,6 +212,7 @@
           el('lb-main').style.display = 'block';
           show('');
           BR.net.lobby();
+          BR.net.askNotice();
           startRefresh();
         } catch (e) {
           show(e.message || '连接失败');
@@ -207,11 +225,17 @@
       el('lb-refresh').onclick = () => { BR.net.lobby(); };
       el('lb-match').onclick = () => {
         if (st.queued) { BR.net.cancelMatch(); return; }
+        // 维护中先拦一下，省得玩家排上队才发现开不了
+        if (BR.isNoticeBlocking && BR.isNoticeBlocking()) return show('服务器维护中，暂时无法匹配');
         show('正在匹配…');
         BR.net.match();
       };
       el('lb-join').onclick = () => doJoin(el('lb-code').value.trim().toUpperCase());
-      el('lb-start').onclick = () => { show('开始！'); BR.net.start(); };
+      el('lb-start').onclick = () => {
+        if (BR.isNoticeBlocking && BR.isNoticeBlocking()) return show('服务器维护中，暂时无法开始新对局');
+        show('开始！');
+        BR.net.start();
+      };
 
       function doJoin(code) {
         if (!code) return show('请输入房间号');

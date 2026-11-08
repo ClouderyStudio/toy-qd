@@ -151,6 +151,20 @@ body { font-family: "Courier New", "Microsoft YaHei", monospace; color: #d8d4c0;
 }
 .cl-list li::before { content: '·'; position: absolute; left: 2px; color: #5a5850; }
 
+/* 服务器维护公告 */
+.ov-notice {
+  display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap;
+  padding: 8px 10px; margin-bottom: 10px;
+  border-left: 3px solid #3a5a7a; background: #0f1418;
+  font-size: 12px; color: #a8b4bc;
+}
+.ov-notice b { color: #7aa0c0; font-size: 11px; letter-spacing: 1px; }
+.ov-notice.warn { border-left-color: #a06a20; background: #161208; }
+.ov-notice.warn b { color: #e0a040; }
+.ov-notice.down { border-left-color: #a02020; background: #180a0a; color: #c0a0a0; }
+.ov-notice.down b { color: #e04040; }
+.ov-notice em { font-style: normal; color: #c08040; font-size: 11px; }
+
 /* 联机大厅：房间列表 */
 .ov-empty { color: #6a6a70; font-size: 12px; padding: 6px 0; }
 .ov-room {

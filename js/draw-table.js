@@ -64,27 +64,28 @@
     const p = v.purse;
     const val = Array.isArray(p) ? (p[me] || 0) : (p || 0);
     const txt = '$' + Number(val).toLocaleString();
-    g.rect(252, 116, 66, 15, '#1a1d17');
-    g.rect(253, 117, 64, 13, '#0a140a');
-    g.text('现金', 256, 120, { size: 5, col: '#6a8a6a' });
-    g.text(txt, 314, 118, { align: 'right', size: 6, col: '#ffe080' });
+    g.rect(252, 130, 66, 15, '#1a1d17');
+    g.rect(253, 131, 64, 13, '#0a140a');
+    g.text('现金', 256, 134, { size: 5, col: '#6a8a6a' });
+    g.text(txt, 314, 132, { align: 'right', size: 6, col: '#ffe080' });
   };
 
   // 子弹自动计数（三连解锁）：只用公开信息推算 —— 本次装弹数减去已打出的弹种，
   // 不读取真实弹序，联机与单机都不会泄露枪膛顺序。
+  // 顶部留 14px 给维护公告横幅，所以从 y=16 起画。
   D.ammo = function (v) {
     const spent = v.spent || [];
     const live = Math.max(0, (v.loadLive || 0) - spent.filter(Boolean).length);
     const blank = Math.max(0, (v.loadBlank || 0) - spent.filter((x) => !x).length);
     const left = Math.max(0, v.left || 0);
-    g.rect(2, 2, 60, 30, '#1a1d17');
-    g.rect(3, 3, 58, 28, '#0a140a');
-    g.text('剩余', 7, 6, { size: 5, col: '#6a8a6a' });
-    g.text(String(left), 56, 2, { align: 'right', size: 9, col: '#b0ffb0' });
-    g.text('实', 7, 19, { size: 5, col: '#c04040' });
-    g.text(String(live), 18, 19, { size: 5, col: '#ff8080' });
-    g.text('空', 34, 19, { size: 5, col: '#607a9a' });
-    g.text(String(blank), 45, 19, { size: 5, col: '#a0c0e0' });
+    g.rect(2, 16, 60, 30, '#1a1d17');
+    g.rect(3, 17, 58, 28, '#0a140a');
+    g.text('剩余', 7, 20, { size: 5, col: '#6a8a6a' });
+    g.text(String(left), 56, 16, { align: 'right', size: 9, col: '#b0ffb0' });
+    g.text('实', 7, 33, { size: 5, col: '#c04040' });
+    g.text(String(live), 18, 33, { size: 5, col: '#ff8080' });
+    g.text('空', 34, 33, { size: 5, col: '#607a9a' });
+    g.text(String(blank), 45, 33, { size: 5, col: '#a0c0e0' });
   };
 
   // 彩蛋：上帝签名。桌上浮起一张 GENERAL RELEASE OF LIABILITY，末尾署名 GOD。
