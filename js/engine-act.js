@@ -83,7 +83,12 @@
         connected: s.connected, cuffed: s.cuffed, cuffLock: s.cuffLock, jammed: s.jammed,
         wiresCut: s.wiresCut, money: s.money, st: Object.assign({}, s.st)
       })),
-      doors: this.doors, penalty: this.penalty, wins: this.wins, result: this.result
+      doors: this.doors, penalty: this.penalty, wins: this.wins, result: this.result,
+      // 局内可见的金钱：
+      //   故事/DoN —— 还没有真正的"钱包"，用预估可拿到的奖金（会被罚款扣减）
+      //   多人     —— 各座位自己的 money
+      // 罚款是累计值，所以这里直接从预估奖金里扣，玩家随时能看到"现在还剩多少"。
+      purse: this.purse()
     };
   };
 

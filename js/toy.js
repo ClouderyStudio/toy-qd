@@ -25,7 +25,7 @@
     throw new Error('rate limited');
   }
 
-  const save = { donUnlocked: '0', bestStory: '0', bestDon: '0', mpWins: '0', vol: '100' };
+  const save = { donUnlocked: '0', bestStory: '0', bestDon: '0', mpWins: '0', vol: '100', bulletUnlock: '0', bulletHud: '1' };
 
   BR.toy = {
     profile: null,
@@ -107,6 +107,63 @@
       const mid = String((BR.config || {}).followMid || '').trim();
       if (!mid || !T() || !T().navigate) return false;
       try { await T().navigate({ type: 'space', id: mid }); return true; }
+      catch (e) { return false; }
+    },
+
+    // ── 三连解锁：子弹自动计数 ──
+    // 配置里允许写完整链接（直接复制 B站 分享链接时常见），统一取出 BV 号
+    bulletVideoId() {
+      const v = String((BR.config || {}).bulletVideo || '').trim();
+      const m = v.match(/BV[0-9A-Za-z]{10}/);
+      return m ? m[0] : v;
+    },
+
+    // 是否已解锁：云存档标记（解锁一次永久生效），或本次会话已过开发者门禁
+    bulletUnlocked() {
+      if (save.bulletUnlock === '1') return true;
+      try { return sessionStorage.getItem('br_dev_ok') === '1'; } catch (e) { return false; }
+    },
+
+    // 计数面板是否要在对局里显示。解锁后默认开，玩家可以在设置里关掉。
+    bulletHudOn() {
+      return save.bulletHud !== '0';
+    },
+
+    // 返回 { ok, kind, missing, reason }。
+    // kind: unlocked（已解锁 / 刚解锁）| unfinished（三连没做全）| env | config | error | dev
+    // 只校验登录态，不弹用户数据确认；解锁后写云存档，之后不再重复请求（平台配额是全 Toy 共享的）
+    async bulletGate() {
+      if (save.bulletUnlock === '1') return { ok: true, kind: 'unlocked', missing: [] };
+      try { if (sessionStorage.getItem('br_dev_ok') === '1') return { ok: true, kind: 'dev', missing: [] }; } catch (e) { /* 忽略 */ }
+      const bvid = BR.toy.bulletVideoId();
+      if (!bvid) return { ok: false, kind: 'config', missing: [], reason: '还没有配置三连视频，暂时无法解锁' };
+      if (!(await has('getVideoUserActions'))) {
+        return { ok: false, kind: 'env', missing: [], reason: '当前环境无法校验三连：请在 B站 App 内打开本页面' };
+      }
+      try {
+        const r = await call(() => T().getVideoUserActions({ videos: [{ bvid }] }));
+        const items = (r && r.items) || [];
+        const item = items.find((x) => x && x.bvid === bvid) || items.find((x) => x && x.status === 'ok') || items[0];
+        if (!item || (item.status && item.status !== 'ok')) {
+          return { ok: false, kind: 'error', missing: [], reason: (item && item.message) || '暂时读不到三连状态，稍后再试' };
+        }
+        const missing = [];
+        if (!item.liked) missing.push('like');
+        if (!(Number(item.coinCount) > 0)) missing.push('coin');
+        if (!item.favorited) missing.push('favorite');
+        if (missing.length) return { ok: false, kind: 'unfinished', missing };
+        await BR.toy.set('bulletUnlock', '1');
+        return { ok: true, kind: 'unlocked', missing: [] };
+      } catch (e) {
+        return { ok: false, kind: 'error', missing: [], reason: '三连状态检测失败：' + ((e && (e.code || e.message)) || '未知错误') };
+      }
+    },
+
+    // 跳转解锁视频（SDK 要求用户手势触发）。返回是否成功发起
+    async goBulletVideo() {
+      const bvid = BR.toy.bulletVideoId();
+      if (!bvid || !T() || !T().navigate) return false;
+      try { await T().navigate({ type: 'video', id: bvid, extra: { from: 'toy' } }); return true; }
       catch (e) { return false; }
     },
 

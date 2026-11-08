@@ -88,11 +88,19 @@
         this.emit({ t: 'item', seat, item: key, to: seat, secret: { off, live } });
         break;
       }
-      case 'inverter':
-        this.shells[this.idx] = !this.shells[this.idx];
+      case 'inverter': {
+        // 翻转当前这发。装弹时的实/空统计必须跟着改，
+        // 否则"剩余实弹/空弹"（子弹自动计数）用的还是旧账，数字会越算越偏。
+        const wasLive = this.shells[this.idx];
+        this.shells[this.idx] = !wasLive;
         this.known.forEach((k) => { if (this.idx in k) k[this.idx] = !k[this.idx]; });
-        this.emit({ t: 'item', seat, item: key });
+        if (this.loadLive !== undefined && this.loadBlank !== undefined) {
+          if (wasLive) { this.loadLive--; this.loadBlank++; }
+          else { this.loadLive++; this.loadBlank--; }
+        }
+        this.emit({ t: 'item', seat, item: key, flipped: this.shells[this.idx] });
         break;
+      }
       case 'medicine': {
         const good = Math.random() < 0.5;
         this.emit({ t: 'item', seat, item: key, good });
@@ -108,6 +116,10 @@
       case 'remote':
         this.dir = -this.dir;
         this.emit({ t: 'item', seat, item: key, dir: this.dir });
+        break;
+      case 'godsign':
+        // 彩蛋：什么也不做，只让所有人看到这张签名
+        this.emit({ t: 'item', seat, item: key });
         break;
     }
   };

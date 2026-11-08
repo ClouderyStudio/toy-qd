@@ -9,6 +9,7 @@
       this.q = []; this.wait = 0; this.latest = null;
       this.gun = 'table'; this.aim = -1; this.reveal = null;
       this.hit = {}; this.sub = ''; this.subT = 0; this.pot = 0; this.result = null;
+      this.signT = 0;   // 上帝签名彩蛋的展示倒计时
     }
     push(events, view) { this.q.push(...events); this.latest = view; }
     idle() { return !this.q.length && this.wait <= 0; }
@@ -19,6 +20,7 @@
     }
     update(dt) {
       this.subT -= dt;
+      if (this.signT > 0) this.signT -= dt;
       Object.keys(this.hit).forEach((k) => { this.hit[k] -= dt; });
       if (this.wait > 0) { this.wait -= dt; return; }
       if (this.q.length) {
@@ -55,7 +57,8 @@
     inverter: (d, e) => `${d.name(e.seat)}按下了逆转器。`,
     medicine: (d, e) => `${d.name(e.seat)}吞下过期药……${e.good ? '感觉好多了。' : '不太对劲。'}`,
     jammer: (d, e) => `${d.name(e.seat)}干扰了${d.name(e.target)}。`,
-    remote: (d, e) => `${d.name(e.seat)}按下遥控器，出手顺序反转。`
+    remote: (d, e) => `${d.name(e.seat)}按下遥控器，出手顺序反转。`,
+    godsign: (d, e) => `${d.name(e.seat)}展开了一张纸……署名为 GOD。`
   };
 
   // 每个处理函数返回本事件占用的秒数
@@ -166,10 +169,19 @@
         this.v.known = k;
       }
       if (e.item === 'handsaw') this.v.sawed = true;
-      if (e.item === 'inverter' && 0 in this.v.known) this.v.known[0] = !this.v.known[0];
+      if (e.item === 'inverter') {
+        // 逆转器只翻转当前这 1 发，装弹统计按 +1/-1 调整。
+        // 用事件里的 flipped 判断翻成了什么，避免在没有旧值的情况下瞎猜。
+        if (0 in this.v.known) this.v.known[0] = e.flipped !== undefined ? e.flipped : !this.v.known[0];
+        if (this.v.loadLive !== undefined && this.v.loadBlank !== undefined && e.flipped !== undefined) {
+          if (e.flipped) { this.v.loadLive++; this.v.loadBlank--; }
+          else { this.v.loadLive--; this.v.loadBlank++; }
+        }
+      }
       if (e.item === 'handcuffs') this.v.seats[e.target].cuffed = true;
       if (e.item === 'jammer') this.v.seats[e.target].jammed = true;
       if (e.item === 'remote') this.v.dir = e.dir;
+      if (e.item === 'godsign') { this.signT = 3.2; BR.sfx.heart(); }   // 桌面浮现免责声明，配一声低鸣
       this.say(ITEM_TEXT[e.item](this, e), 2);
       return 1.4;
     },

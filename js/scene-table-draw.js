@@ -51,6 +51,8 @@
     }
 
     D.lcd(v, t);
+    if (BR.toy.bulletUnlocked() && BR.toy.bulletHudOn()) D.ammo(v);   // 三连解锁后显示剩余实弹 / 空弹
+    D.purse(v, me);                                                  // 现金：局内随时可见
 
     // 霰弹枪
     if (dir.reveal) D.shells(dir.reveal, 160, 132);
@@ -75,6 +77,9 @@
 
     S.drawUI(t, v, ui, foes);
     S.tip = null;
+
+    // 彩蛋盖在最上层：上帝签名展开时压住桌面，最后 0.8 秒淡出
+    if (dir.signT > 0) D.godSign(t, Math.min(1, dir.signT / 0.8));
   };
 
   function hoverSlot(side) {

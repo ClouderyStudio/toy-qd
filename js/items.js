@@ -13,7 +13,9 @@
     inverter:    { name: '逆转器',     en: 'INVERTER',         desc: '翻转当前子弹：实弹变空弹，空弹变实弹。' },
     medicine:    { name: '过期药',     en: 'EXPIRED MEDICINE', desc: '50% 回复 2 点电量，否则失去 1 点。' },
     jammer:      { name: '干扰器',     en: 'JAMMER',           desc: '指定一名玩家，跳过其下一回合。', needsTarget: true },
-    remote:      { name: '遥控器',     en: 'REMOTE',           desc: '反转出手顺序。' }
+    remote:      { name: '遥控器',     en: 'REMOTE',           desc: '反转出手顺序。' },
+    // 彩蛋道具：不进道具池，只在发道具时低概率掉落（见 engine-core 的 deal）
+    godsign:     { name: '上帝签名',   en: "GOD'S SIGNATURE",  desc: '一份署名为 GOD 的免责声明。没有任何用处，但值得炫耀。' }
   };
 
   const BASE = ['magnifier', 'cigarette', 'beer', 'handsaw', 'handcuffs'];

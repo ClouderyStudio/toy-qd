@@ -265,14 +265,105 @@
       p.querySelector('#fg-back').onclick = () => BR.overlay.hide();
     },
 
+    // 三连解锁：子弹自动计数。先显示检测中，结果回来再换面板
+    bullet() {
+      BR.overlay._bseq = (BR.overlay._bseq || 0) + 1;
+      const seq = BR.overlay._bseq;
+      const p = panel(`
+        <div class="ov-card">
+          <h2>子弹自动计数</h2>
+          <p class="ov-sub">正在检测三连状态…</p>
+          <p class="ov-msg" id="bg-msg"></p>
+          <div class="ov-actions"><button id="bg-back" class="pix-btn ghost">返回</button></div>
+        </div>`);
+      p.querySelector('#bg-back').onclick = () => { BR.overlay._bseq++; BR.overlay.hide(); };
+      BR.toy.bulletGate()
+        .then((r) => { if (seq === BR.overlay._bseq) BR.overlay.bulletPanel(r); })
+        .catch(() => {
+          if (seq === BR.overlay._bseq) {
+            BR.overlay.bulletPanel({ ok: false, kind: 'error', missing: [], reason: '三连状态检测异常，稍后再试' });
+          }
+        });
+    },
+
+    bulletPanel(r) {
+      const missing = r.missing || [];
+      const known = !!r.ok || r.kind === 'unfinished';
+      const done = (k) => !!r.ok || (known && missing.indexOf(k) < 0);
+      const mark = (k) => (!known ? '·' : done(k) ? '✔' : '○');
+      const cls = (k) => (!known ? 'skip' : done(k) ? 'done' : 'todo');
+      const row = (k, name) => `
+        <div class="ov-triple ${cls(k)}">
+          <span class="ov-triple-mark">${mark(k)}</span>
+          <span class="ov-triple-name">${name}</span>
+          <span class="ov-triple-tag">${done(k) ? '已完成' : (known ? '未完成' : '状态未知')}</span>
+        </div>`;
+      const status = r.ok
+        ? '<p class="ov-ok">已解锁：对局中会自动显示剩余实弹与空弹数量。</p>'
+        : r.kind === 'unfinished'
+          ? '<p class="ov-warn">三项都完成后即可解锁，解锁一次永久生效。</p>'
+          : `<p class="ov-warn">${esc(r.reason || '暂时无法校验三连状态')}</p>`;
+      const canRetry = r.kind !== 'config';
+      const p = panel(`
+        <div class="ov-card">
+          <h2>子弹自动计数</h2>
+          <p class="ov-sub">给作者视频点赞 + 投币 + 收藏后解锁</p>
+          ${status}
+          <div class="ov-triples">
+            ${row('like', '点赞')}
+            ${row('coin', '投币')}
+            ${row('favorite', '收藏')}
+          </div>
+          <p class="ov-msg" id="bg-msg"></p>
+          <div class="ov-actions">
+            ${r.ok ? '' : '<button id="bg-go" class="pix-btn">去视频三连</button>'}
+            ${r.ok || !canRetry ? '' : '<button id="bg-retry" class="pix-btn ghost">重新检测</button>'}
+            <button id="bg-back" class="pix-btn ghost">返回</button>
+          </div>
+        </div>`);
+      const msg = p.querySelector('#bg-msg');
+      const show = (m) => { msg.textContent = m; };
+      const back = p.querySelector('#bg-back');
+      back.onclick = () => { BR.overlay._bseq++; BR.overlay.hide(); };
+      const go = p.querySelector('#bg-go');
+      if (go) {
+        go.onclick = async () => {
+          show('正在打开视频…');
+          const ok = await BR.toy.goBulletVideo();
+          show(ok ? '三连后回到本页面，点「重新检测」即可解锁' : '跳转失败：请在 B站 App 内打开作者视频');
+        };
+      }
+      const retry = p.querySelector('#bg-retry');
+      if (retry) {
+        retry.onclick = async () => {
+          const seq = ++BR.overlay._bseq;
+          retry.disabled = true;
+          show('正在检测…');
+          let nr;
+          try { nr = await BR.toy.bulletGate(); }
+          catch (e) { nr = { ok: false, kind: 'error', missing: [], reason: '检测异常，稍后再试' }; }
+          if (seq !== BR.overlay._bseq) return;
+          BR.overlay.bulletPanel(nr);
+        };
+      }
+    },
+
     // 设置：音量滑条（实时生效，change 时存档走云同步）
     settings() {
       const cur = ((BR.toy || {}).save || {}).vol != null ? Math.round(+BR.toy.save.vol) : 100;
+      const unlocked = BR.toy.bulletUnlocked();
+      const hudOn = BR.toy.bulletHudOn();
       const p = panel(`
         <div class="ov-card">
           <h2>设置</h2>
           <p class="ov-sub">音量 <b id="st-vol-n">${cur}</b>%</p>
           <input id="st-vol" type="range" min="0" max="100" step="5" value="${cur}">
+          <h3 class="ov-h3">对局显示</h3>
+          <label class="ov-toggle ${unlocked ? '' : 'disabled'}">
+            <input type="checkbox" id="st-bullet" ${unlocked && hudOn ? 'checked' : ''} ${unlocked ? '' : 'disabled'}>
+            <span>子弹自动计数</span>
+            <span class="ov-toggle-note">${unlocked ? '对局左上角显示剩余实弹 / 空弹' : '未解锁（需三连）'}</span>
+          </label>
           <p class="ov-msg" id="st-msg"></p>
           <div class="ov-actions">
             <button id="st-back" class="pix-btn ghost">返回</button>
@@ -283,15 +374,23 @@
       const msgEl = p.querySelector('#st-msg');
       let msgTimer = null;
       const show = (m) => { msgEl.textContent = m; };
+      const flash = (m) => {
+        show(m);
+        clearTimeout(msgTimer);
+        msgTimer = setTimeout(() => show(''), 1500);
+      };
       rng.addEventListener('input', () => {
         num.textContent = BR.sfx.setVolume(rng.value);
       });
       rng.addEventListener('change', () => {
         const v = BR.sfx.setVolume(rng.value);
         BR.toy.set('vol', v);
-        show('音量已保存');
-        clearTimeout(msgTimer);
-        msgTimer = setTimeout(() => show(''), 1500);
+        flash('音量已保存');
+      });
+      const chk = p.querySelector('#st-bullet');
+      chk.addEventListener('change', () => {
+        BR.toy.set('bulletHud', chk.checked ? '1' : '0');
+        flash(chk.checked ? '子弹计数已开启' : '子弹计数已关闭');
       });
       p.querySelector('#st-back').onclick = () => BR.overlay.hide();
     },
@@ -441,13 +540,43 @@
       p.querySelector('#dg-back').onclick = () => BR.overlay.hide();
     },
 
+    // 更新日志：从新到旧列出版本、日期、变更点
+    changelog() {
+      const entries = (BR.CHANGELOG && BR.CHANGELOG.entries) || [];
+      const cur = String((BR.config || {}).version || '');
+      const tagCls = { '新增': 'new', '修复': 'fix', '调整': 'tweak', '首发': 'init' };
+      const body = entries.map((e) => {
+        const isCur = e.version === cur;
+        return `
+          <div class="cl-entry">
+            <div class="cl-head">
+              <b class="cl-ver ${isCur ? 'cur' : ''}">${esc(e.version)}</b>
+              <span class="cl-tag ${tagCls[e.tag] || 'tweak'}">${esc(e.tag)}</span>
+              ${isCur ? '<span class="cl-cur">当前版本</span>' : ''}
+              <span class="cl-date">${esc(e.date)}</span>
+            </div>
+            <ul class="cl-list">${e.items.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>
+          </div>`;
+      }).join('');
+      const p = panel(`
+        <div class="ov-card wide">
+          <h2>更新日志</h2>
+          <p class="ov-sub">当前版本 ${esc(cur || '—')}</p>
+          <div class="cl-wrap">${body || '<p class="ov-empty">暂无记录</p>'}</div>
+          <button id="cl-back" class="pix-btn ghost">返回</button>
+        </div>`);
+      p.querySelector('#cl-back').onclick = () => BR.overlay.hide();
+    },
+
     rules() {
       const p = panel(`<div class="ov-card wide"><h2>规则</h2>
         <div class="ov-rules">
           <p>· 轮流操作霰弹枪：可以射向自己（空弹可继续行动）或对手。</p>
           <p>· 每发子弹可能是实弹或空弹，装弹时会向所有人展示。</p>
+          <p>· 给作者视频点赞 + 投币 + 收藏，可解锁「子弹自动计数」：对局中显示剩余实弹 / 空弹。</p>
           <p>· 倒下后若除颤器电线未断，可被救回；电线断了再挨一枪就是死。</p>
           <p>· 最多持有 8 个道具；每装弹发一次道具。</p>
+          <p>· 掏道具时极小概率摸到「上帝签名」：一份署名为 GOD 的免责声明，没有任何用处。</p>
           <p>· 故事模式三关全胜，浴室会出现药丸，进入 DOUBLE OR NOTHING。</p>
           <p>· 多人模式可射向任意玩家，每关胜者得一箱钱，三关后钱多者胜。</p>
         </div>

@@ -46,6 +46,18 @@
     return s.cigs * 220 + s.beer * 495;
   };
 
+  /* 玩家此刻"手里有多少钱"。所有模式统一成一个字段，界面直接画。
+   * 故事/DoN 还没有真实钱包，这里给的是按当前进度算出的预计到手奖金：
+   *   DoN 进行中 = 当前奖池；否则 = 基础奖金 - 罚款 - 烟酒消耗。
+   * 地牢里被医生救活会加罚款，所以这个数字会当场变小 —— 正是玩家想看到的反馈。 */
+  G.purse = function () {
+    if (this.mode === 'mp') {
+      return this.seats.map((s) => s.money);
+    }
+    if (this.mode === 'don' && this.pot) return this.pot;
+    return Math.max(0, DON_BASE - this.penalty - this.vice());
+  };
+
   G.donChoice = function (go) {
     if (go) {
       this.round++;
@@ -56,6 +68,10 @@
 
   G.finish = function (result) {
     this.phase = 'over';
+    // over 是给视图/客户端判断"这局结束了"的正式标志，必须一并置上。
+    // 少这一句时 phase 虽然是 over，但 view.over 仍是 undefined，
+    // 客户端会继续显示"等待"，而服务端已经不再调度回合 —— 表现就是卡住。
+    this.over = true;
     if (this.mode === 'mp') {
       let best = -1;
       this.seats.forEach((s, i) => {

@@ -20,9 +20,21 @@ echo "== 1/5 Node =="
 if command -v node >/dev/null 2>&1; then
   echo "已装：$(node -v)"
 else
-  # Debian/Ubuntu 自带源里的 nodejs 版本够用（≥18 即可，不依赖新语法）。
-  apt-get update -qq
-  apt-get install -y -qq nodejs npm
+  # 发行版自带的 nodejs 版本够用（≥18 即可，不依赖新语法）。
+  # 2026-11-06：国内源站是 Rocky Linux 9，没有 apt-get，必须走 dnf module
+  # （直接 `dnf install nodejs` 只给 16，需要先 enable nodejs:22）。
+  if command -v apt-get >/dev/null 2>&1; then
+    apt-get update -qq
+    apt-get install -y -qq nodejs npm
+  elif command -v dnf >/dev/null 2>&1; then
+    dnf module enable nodejs:22 -y -q
+    dnf install -y -q nodejs npm
+  elif command -v yum >/dev/null 2>&1; then
+    yum module enable nodejs:22 -y -q && yum install -y -q nodejs npm
+  else
+    echo "没有可用的包管理器（apt-get/dnf/yum），请先手工安装 Node ≥18" >&2
+    exit 1
+  fi
   echo "已装：$(node -v)"
 fi
 NODE_BIN="$(command -v node)"
@@ -54,10 +66,14 @@ systemctl enable toy-mp >/dev/null 2>&1 || true
 systemctl restart toy-mp
 
 echo "== 5/5 自检 =="
+# 端口必须从 .env 读：2026-11-06 国内机首次部署时写死 8080 导致「假失败」
+# （8080 上是 ClouderyApi，toy 实际监听 8091）。
+SELF_PORT="$(grep -E '^PORT=' "$APP_DIR/.env" 2>/dev/null | cut -d= -f2- | tr -d '\r\n')"
+SELF_PORT="${SELF_PORT:-8080}"
 for i in $(seq 1 15); do
   sleep 1
-  if curl -fsS -o /dev/null -m 2 http://127.0.0.1:8080/ 2>/dev/null; then
-    echo "✅ 本机 8080 已响应"
+  if curl -fsS -o /dev/null -m 2 "http://127.0.0.1:$SELF_PORT/" 2>/dev/null; then
+    echo "✅ 本机 $SELF_PORT 已响应"
     break
   fi
   [ "$i" = 15 ] && { echo "❌ 15 秒内没起来，看日志：" >&2; journalctl -u toy-mp -n 40 --no-pager >&2; exit 1; }

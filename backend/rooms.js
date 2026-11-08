@@ -55,6 +55,7 @@ function genCode() {
 // ── 广播 ────────────────────────────────────────────────────────────────
 
 function roomInfo(room) {
+  const online = room.players.filter((p) => p.ws && !p.left).length;
   room.players.forEach((p, i) => send(p.ws, {
     type: 'room',
     code: room.code,
@@ -62,7 +63,10 @@ function roomInfo(room) {
     host: 0,
     players: room.players.map((x) => x.name),
     offline: room.players.map((x) => !x.ws),
-    started: !!room.game
+    started: !!room.game,
+    // 对局中有人退出后，房间里的人数只看还在局内的人，不能用数组长度
+    count: room.game ? online : room.players.length,
+    maxPlayers: MAX_PLAYERS
   }));
 }
 
@@ -316,8 +320,18 @@ function action(ws, a) {
   if (!room || !room.game) return;
   const seat = seatOf(room, ws);
   if (seat < 0) return;
+  const game = room.game;
+
+  // 客户端会带 _turn（它以为的当前回合）用于诊断，引擎不认这个字段，先剥掉
+  if (a && typeof a === 'object') { a = Object.assign({}, a); delete a._turn; }
+
   let events;
-  try { events = room.game.act(seat, a); } catch (e) { return send(ws, { type: 'error', message: e.message }); }
+  try { events = game.act(seat, a); } catch (e) {
+    // 出错的这次动作不应阻断后续：把权威视图补发一遍。
+    // 客户端靠这帧清掉 pending，否则一次误操作会让人卡在"等待"里。
+    send(ws, { type: 'error', message: e.message });
+    return send(ws, { type: 'events', events: [], view: game.getView(seat), turnLeft: room.turnLeft || 0 });
+  }
   scheduleTurn(room);
   broadcastEvents(room, events);
 }
@@ -421,6 +435,29 @@ function expireSeat(room, player) {
 
 function removeSeat(room, seat, notifyGame) {
   const leftHost = seat === 0;
+
+  // 对局中座位必须与引擎保持一致：引擎的 leave() 只把座位标成"断开"，并不删除，
+  // 所以这里**不能**先 splice 再按新下标去查座位 —— 否则玩家一退出，
+  // 后面所有人的 room.players 下标就和引擎的 seat 错位，
+  // 表现为"轮到我了却说还没轮到你"、以及剩下的人一直卡住。
+  if (notifyGame && room.game) {
+    let events = [];
+    try { events = room.game.leave(seat) || []; } catch (e) { events = []; }
+    const player = room.players[seat];
+    if (player) {
+      // 对局中：保留占位（seats 与 view 都不动），只把连接摘掉
+      if (player.timer) { clearTimeout(player.timer); player.timer = null; }
+      player.ws = null;
+      player.left = true;
+      seats.delete(player.playerId);
+    }
+    scheduleTurn(room);
+    if (events.length) broadcastEvents(room, events);
+    roomInfo(room);
+    syncRoom(room);
+    return;
+  }
+
   room.players.splice(seat, 1);
 
   if (!room.players.length) return teardown(room);
@@ -429,13 +466,6 @@ function removeSeat(room, seat, notifyGame) {
   if (leftHost && !room.game) {
     sendToAll(room, { type: 'closed', reason: '房主离开了房间' });
     return teardown(room);
-  }
-
-  if (notifyGame && room.game) {
-    let events = [];
-    try { events = room.game.leave(seat) || []; } catch (e) { events = []; }
-    scheduleTurn(room);
-    if (events.length) broadcastEvents(room, events);
   }
 
   roomInfo(room);

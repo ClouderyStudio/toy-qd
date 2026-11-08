@@ -5,6 +5,8 @@
   if (typeof module !== 'undefined' && !BR.ITEMS) require('./items.js');
 
   const MAX_ITEMS = 8, MAX_SHELLS = 8;
+  // 彩蛋掉落率：每次发放道具、对每个存活座位判定一次。约 200 次发牌出一次。
+  const GOD_SIGN_RATE = 0.005;
   const ri = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
   const shuffle = (a) => { for (let i = a.length - 1; i > 0; i--) { const j = ri(0, i); [a[i], a[j]] = [a[j], a[i]]; } return a; };
   BR.MAX_ITEMS = MAX_ITEMS;
@@ -93,7 +95,23 @@
         }
         return g;
       });
+      this.godGift(got);
       this.emit({ t: 'deal', items: got });
+    }
+
+    // 彩蛋：掏道具时有极小概率摸到「上帝签名」，换掉刚发的某一件。
+    // 只影响那一个座位的那一件，不额外多给，因此不改变对局平衡。
+    godGift(got) {
+      for (let i = 0; i < got.length; i++) {
+        if (!got[i].length) continue;
+        if (Math.random() >= GOD_SIGN_RATE) continue;
+        const j = ri(0, got[i].length - 1);
+        const from = this.seats[i].items.lastIndexOf(got[i][j]);
+        if (from < 0) continue;
+        this.seats[i].items[from] = 'godsign';
+        got[i][j] = 'godsign';
+        this.emit({ t: 'godsign', seat: i });
+      }
     }
 
     nextSeat(s) {

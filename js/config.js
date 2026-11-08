@@ -15,5 +15,8 @@ window.BR = window.BR || {};
 window.BR.config = {
   wsUrl: '',     // 构建时由 BR_WS_URL 注入，例：'wss://你的域名/toy-mp'
   followMid: '', // 构建时由 BR_FOLLOW_MID 注入（作者 B站 UID），「关注解锁联机」跳作者主页用
-  version: 'v1.0.0'   // 主菜单左下角显示的发版号，每次发布手改
+  // 「三连解锁子弹自动计数」用于校验点赞/投币/收藏的作者视频 BV 号。
+  // 换视频只改这里；留空则功能锁定并提示未配置。
+  bulletVideo: 'BV1nbxx6zETG',
+  version: 'v1.1.3'   // 主菜单左下角显示的发版号，每次发布手改
 };

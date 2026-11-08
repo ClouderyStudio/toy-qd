@@ -6,8 +6,9 @@
   S.drawUI = function (t, v, ui, foes) {
     const { dir, me } = S.state();
 
-    // 字幕
-    if (dir.subT > 0 && dir.sub) {
+    // 字幕。上帝签名彩蛋展开时让位——纸面本身已经说明了一切，
+    // 而且文字是延后合成为上层元素，不隐去就会穿过纸面。
+    if (dir.subT > 0 && dir.sub && !(dir.signT > 0)) {
       const lines = g.wrap(dir.sub, 220, 7);
       lines.forEach((l, i) => g.text(l, 160, 84 + i * 9 - lines.length * 4, { align: 'center', size: 7, col: '#f0ecd8', a: Math.min(1, dir.subT * 2) }));
     }

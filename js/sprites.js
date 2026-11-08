@@ -29,7 +29,11 @@
       '..kddddddk..', '..kdgggggk..', '..kddddddk..', '..kkkkkkkk..', '............', '............'],
     remote: ['............', '....kkkk....', '....kddk....', '....kRdk....', '....kddk....', '....kgbk....',
       '....kbgk....', '....kgbk....', '....kddk....', '....kkkk....', '............', '............'],
-    bolt: ['....yy', '...yy.', '..yyyy', '...yy.', '..yy..', '.y....']
+    bolt: ['....yy', '...yy.', '..yyyy', '...yy.', '..yy..', '.y....'],
+    // 彩蛋：一张纸，右下角一枚金色署名
+    godsign: ['............', '.kkkkkkkkkk.', '.kwwwwwwwwk.', '.kwwwwwwwwk.', '.kwwkwwkwwk.',
+      '.kwwwwwwwwk.', '.kwwkwwwwwwk.', '.kwwwwwwwwk.', '.kwwwwwwwwk.', '.kwwwwkwwwwk.',
+      '.kwwwwyywwk.', '.kkkkkkkkkk.']
   };
   const cache = {};
 

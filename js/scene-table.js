@@ -47,7 +47,12 @@
 
   S.send = function (a) {
     ui = { mode: 'idle', sel: -1, foe: -1 };
-    if (net) { pending = true; BR.net.send({ type: 'action', action: a }); return; }
+    if (net) {
+      // 带上"我以为现在是第几回合"，服务端据此判断是否需要提示同步
+      pending = true;
+      BR.net.send({ type: 'action', action: Object.assign({}, a, { _turn: dir.v.turn }) });
+      return;
+    }
     try { dir.push(game.act(0, a), game.getView(0)); } catch (e) { dir.say(e.message, 1.6); }
   };
 

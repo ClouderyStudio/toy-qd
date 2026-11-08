@@ -58,6 +58,56 @@
     });
   };
 
+  // 放右下角上方：道具格在 y=158~172，这里上移到 174 以下会出屏，
+  // 所以改放右侧中部（x 260~316, y 118~140），既避让道具又不挡枪。
+  D.purse = function (v, me) {
+    const p = v.purse;
+    const val = Array.isArray(p) ? (p[me] || 0) : (p || 0);
+    const txt = '$' + Number(val).toLocaleString();
+    g.rect(252, 116, 66, 15, '#1a1d17');
+    g.rect(253, 117, 64, 13, '#0a140a');
+    g.text('现金', 256, 120, { size: 5, col: '#6a8a6a' });
+    g.text(txt, 314, 118, { align: 'right', size: 6, col: '#ffe080' });
+  };
+
+  // 子弹自动计数（三连解锁）：只用公开信息推算 —— 本次装弹数减去已打出的弹种，
+  // 不读取真实弹序，联机与单机都不会泄露枪膛顺序。
+  D.ammo = function (v) {
+    const spent = v.spent || [];
+    const live = Math.max(0, (v.loadLive || 0) - spent.filter(Boolean).length);
+    const blank = Math.max(0, (v.loadBlank || 0) - spent.filter((x) => !x).length);
+    const left = Math.max(0, v.left || 0);
+    g.rect(2, 2, 60, 30, '#1a1d17');
+    g.rect(3, 3, 58, 28, '#0a140a');
+    g.text('剩余', 7, 6, { size: 5, col: '#6a8a6a' });
+    g.text(String(left), 56, 2, { align: 'right', size: 9, col: '#b0ffb0' });
+    g.text('实', 7, 19, { size: 5, col: '#c04040' });
+    g.text(String(live), 18, 19, { size: 5, col: '#ff8080' });
+    g.text('空', 34, 19, { size: 5, col: '#607a9a' });
+    g.text(String(blank), 45, 19, { size: 5, col: '#a0c0e0' });
+  };
+
+  // 彩蛋：上帝签名。桌上浮起一张 GENERAL RELEASE OF LIABILITY，末尾署名 GOD。
+  // a 为整体透明度，靠近尾声时淡出，不打断对局操作。
+  D.godSign = function (t, a) {
+    const w = 84, h = 66, x = Math.round(160 - w / 2), y = 54;
+    g.alpha(a, () => {
+      g.rect(0, 0, 320, 180, 'rgba(0,0,0,0.45)');                 // 压暗桌面，避免字幕穿过来
+      g.rect(x + 2, y + 2, w, h, 'rgba(0,0,0,0.6)');              // 投影
+      g.rect(x, y, w, h, '#d8d2b8');                              // 纸
+      g.rect(x, y, w, 1, '#f0ecd8');
+      g.text('GENERAL RELEASE', 160, y + 6, { align: 'center', size: 5, col: '#402018' });
+      g.text('OF LIABILITY', 160, y + 14, { align: 'center', size: 5, col: '#402018' });
+      g.rect(x + 9, y + 22, w - 18, 1, '#7a7460');
+      // 正文：只用横线示意，别真写满字（320x180 放不下也读不清）
+      for (let i = 0; i < 6; i++) g.rect(x + 9, y + 26 + i * 3, w - 18 - (i % 3) * 7, 1, '#6a6454');
+      g.text('ENTER NAME:', 160, y + 47, { align: 'center', size: 4, col: '#5a5444' });
+      g.rect(x + 22, y + 55, w - 44, 1, '#5a5444');
+      const glow = 0.85 + Math.sin(t * 6) * 0.15;                 // 署名微微发光
+      g.alpha(glow, () => g.text('GOD', 160, y + 56, { align: 'center', size: 7, col: '#c8a020' }));
+    });
+  };
+
   // 除颤器计分机：每位玩家一行名字与闪电电量
   D.lcd = function (v, t) {
     const n = v.seats.length;
