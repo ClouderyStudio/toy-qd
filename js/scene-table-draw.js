@@ -25,7 +25,8 @@
       if (s.cuffed) g.text('[铐]', p.x, p.y - 30, { align: 'center', size: 5, col: '#c0c0c8' });
       if (s.jammed) g.text('[干扰]', p.x, p.y - 30, { align: 'center', size: 5, col: '#e06060' });
       if (dir.aim === f && dir.gun === 'far') g.alpha(0.5, () => g.ellipse(p.x, p.y, 20, 22, '#400000'));
-      if (!two || v.mode === 'mp') g.text(s.name, p.x, p.y + 30, { align: 'center', size: 5, col: v.turn === f ? '#ffe080' : '#a0a090' });
+      // 头顶只有 40px 宽，名字长了会跟旁边的人叠在一起；这里按 8 个字截断
+      if (!two || v.mode === 'mp') g.text(Array.from(s.name).slice(0, 8).join(''), p.x, p.y + 30, { align: 'center', size: 5, col: v.turn === f ? '#ffe080' : '#a0a090' });
       if (ui.mode === 'pickFoe' && s.alive) BR.hot({ x: p.x - 20, y: p.y - 24, w: 40, h: 54 }, () => S.pickFoe(f));
     });
 

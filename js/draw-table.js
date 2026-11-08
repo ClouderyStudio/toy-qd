@@ -117,7 +117,9 @@
     v.seats.forEach((s, i) => {
       const y = 118 + i * 14;
       const name = v.mode === 'mp' || i === 0 ? s.name : 'DEALER';
-      g.text(name.slice(0, 6), 6, y, { size: 5, col: s.alive ? '#80f080' : '#2a5a2a' });
+      // LCD 只有 6 个字的宽度。名字本身不截（服务器战绩榜要完整），
+      // 只在画到这里时截断，并且按字符截，避免把 emoji 的代理对切坏。
+      g.text(Array.from(name).slice(0, 6).join(''), 6, y, { size: 5, col: s.alive ? '#80f080' : '#2a5a2a' });
       const dark = v.wires ? 2 : 0;
       for (let k = 0; k < s.maxHp; k++) {
         const bx = 6 + k * 8, by = y + 6;

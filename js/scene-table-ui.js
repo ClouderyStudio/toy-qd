@@ -27,8 +27,8 @@
     if (ui.mode === 'aim') {
       const btn = (label, x, target) => BR.button(label, x, 144, 70, 13, () => S.send({ type: 'shoot', target }), { size: 6 });
       const alive = foes.filter((f) => v.seats[f].alive);
-      if (alive.length === 1) btn(v.mode === 'mp' ? `射 ${v.seats[alive[0]].name}` : '射向庄家', 84, alive[0]);
-      else alive.forEach((f, k) => btn(`射 ${v.seats[f].name}`, 20 + k * 74, f));
+      if (alive.length === 1) btn(v.mode === 'mp' ? `射 ${Array.from(v.seats[alive[0]].name).slice(0, 6).join('')}` : '射向庄家', 84, alive[0]);
+      else alive.forEach((f, k) => btn(`射 ${Array.from(v.seats[f].name).slice(0, 5).join('')}`, 20 + k * 74, f));
       btn('射向自己', alive.length === 1 ? 166 : 20 + alive.length * 74, me);
       BR.button('放下', 290, 144, 28, 13, S.cancel, { size: 5 });
     }

@@ -31,12 +31,20 @@ function saveStats(stats) {
   } catch (e) { /* 忽略 */ }
 }
 
+/* 存档里的名字长度上限。单机自报走 HTTP，不经过 rooms.js 的 cleanName，
+ * 这里统一按字符（不是 UTF-16 码元）截断，避免 emoji 被切坏，
+ * 也避免两处口径不一致导致同一个玩家在不同榜里显示成不同长度。 */
+const NAME_STORE_MAX = 24;
+function clipName(raw) {
+  return Array.from(String(raw || '').trim()).slice(0, NAME_STORE_MAX).join('');
+}
+
 // 多人对局结束：服务端引擎算出的 result，权威记录
 function recordResult(room, result) {
   const at = new Date().toISOString();
   const players = room.players.map((p, i) => ({
     playerId: p.playerId || null,
-    name: p.name,
+    name: clipName(p.name),
     seat: i,
     money: result && result.money ? result.money[i] : null,
     winner: result ? result.winner === i : false,
@@ -60,11 +68,12 @@ function recordResult(room, result) {
 function recordClaimed(name, playerId, mode, cash) {
   const at = new Date().toISOString();
   cash = Math.max(-1e9, Math.min(1e9, Math.round(Number(cash) || 0)));
-  append(RESULTS, { at, kind: 'claimed', mode, cash, playerId: playerId || null, name: String(name || '').slice(0, 24) });
+  const nm = clipName(name);
+  append(RESULTS, { at, kind: 'claimed', mode, cash, playerId: playerId || null, name: nm });
   const stats = loadStats();
-  const key = playerId || 'anon:' + (name || '');
-  const s = stats.players[key] || (stats.players[key] = { name, games: 0, wins: 0, bestMoney: 0, lastSeen: null });
-  s.name = name;
+  const key = playerId || 'anon:' + nm;
+  const s = stats.players[key] || (stats.players[key] = { name: nm, games: 0, wins: 0, bestMoney: 0, lastSeen: null });
+  s.name = nm;
   s.games++;
   if (mode === 'story' && cash > (s.bestStory || 0)) s.bestStory = cash;
   if (mode === 'don' && cash > (s.bestDon || 0)) s.bestDon = cash;

@@ -92,6 +92,11 @@ body { font-family: "Courier New", "Microsoft YaHei", monospace; color: #d8d4c0;
 .ov-card td { padding: 5px 8px; border-bottom: 1px solid #2a2a30; }
 .ov-card td:nth-child(1) { width: 40px; color: #ffe080; }
 .ov-card td:nth-child(3) { text-align: right; color: #80c080; }
+/* 玩家名那一列：长名字允许省略，别把表格撑出卡片 */
+.ov-card td:nth-child(2) {
+  max-width: 180px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 
 .ov-rules p { font-size: 12px; }
 

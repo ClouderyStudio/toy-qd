@@ -40,8 +40,17 @@ function send(ws, msg) {
   if (ws && ws.readyState === 1) ws.send(JSON.stringify(msg));
 }
 
+/* 昵称清洗。
+ * 长度上限给到 16：对局里名字要画在头顶，地方有限，但那属于**显示层**的事
+ * （见 js/draw-table.js 与 scene-table-draw.js，它们会自己截断）。
+ * 之前这里截成 6 个字，导致服务器战绩榜上的名字全是被砍掉一半的，
+ * 玩家一眼就能看出来不对劲。 */
+const NAME_MAX = 16;
+
 function cleanName(raw) {
-  let s = String(raw || '').replace(/[\u0000-\u001f\u007f<>&"'`]/g, '').trim().slice(0, 6);
+  let s = String(raw || '').replace(/[\u0000-\u001f\u007f<>&"'`]/g, '').trim();
+  // 按字符（而不是 UTF-16 码元）截断，避免把 emoji / 生僻字的代理对切一半
+  s = Array.from(s).slice(0, NAME_MAX).join('');
   if (!s || /^(DEALER|GOD)$/i.test(s)) s = 'PLAYER';
   return s;
 }

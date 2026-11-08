@@ -25,8 +25,8 @@
           <h2>GENERAL RELEASE OF LIABILITY</h2>
           <p class="ov-sub">通用免责声明</p>
           <p>本人已知晓本活动存在人身伤害乃至死亡的风险，<br>自愿放弃对主办方追究任何责任的权利。</p>
-          <p class="ov-warn">姓名最多 6 个字符，禁用 DEALER / GOD。</p>
-          <input id="w-name" maxlength="6" value="${esc(def)}" placeholder="你的名字">
+          <p class="ov-warn">姓名最多 16 个字符，禁用 DEALER / GOD。</p>
+          <input id="w-name" maxlength="16" value="${esc(def)}" placeholder="你的名字">
           <div class="ov-actions">
             <button id="w-ok" class="pix-btn">签 字</button>
             <button id="w-no" class="pix-btn ghost">算了</button>
@@ -35,7 +35,7 @@
       const input = p.querySelector('#w-name');
       setTimeout(() => input.focus(), 50);
       const submit = () => {
-        let n = input.value.trim().slice(0, 6);
+        let n = Array.from(input.value.trim()).slice(0, 16).join('');
         if (!n || /^(DEALER|GOD)$/i.test(n)) { input.value = ''; return; }
         BR.overlay.hide(); onOk(n);
       };
@@ -58,7 +58,7 @@
           <p class="ov-sub">2 ~ 4 人对战</p>
           <div id="lb-ident">
             <div class="ov-row">
-              <input id="lb-name" maxlength="6" placeholder="你的名字" value="${esc(st.name)}">
+              <input id="lb-name" maxlength="16" placeholder="你的名字" value="${esc(st.name)}">
               <button id="lb-enter" class="pix-btn">进入联机</button>
             </div>
           </div>
@@ -182,7 +182,7 @@
 
       // ── 动作 ──
       el('lb-enter').onclick = async () => {
-        const name = el('lb-name').value.trim().slice(0, 6);
+        const name = Array.from(el('lb-name').value.trim()).slice(0, 16).join('');
         if (!name) return show('请输入名字');
         if (/^(DEALER|GOD)$/i.test(name)) return show('这个名字不能用');
         const ck = await BR.toy.checkName(name);
