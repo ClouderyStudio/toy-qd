@@ -25,6 +25,15 @@ const RESERVE_GAME_MS = 60 * 1000;   // 对局中掉线保留座位
 const RESERVE_LOBBY_MS = 20 * 1000;  // 大厅里掉线保留座位
 const HEARTBEAT_MS = 15 * 1000;      // 房间心跳（API 侧 TTL 120 秒）
 const POLL_MS = 1500;                // 快速匹配轮询间隔
+/* 空闲房间回收阈值。
+ * 起因（2026-11-14）：玩家直接关页面/断网时不会走 leave/teardown，死房会永远留在
+ * rooms 里，而心跳每 15 秒给**每个**房间发一次 sync；这些死房还会被 API 的 120 秒
+ * TTL 回收后由 registerRoom 自愈登记回来，形成永不退场的自我续命循环。实测堆积到
+ * 47 个死房（38 个 playing，最老的静置 8 小时），把 ClouderyApi 与 MySQL 连接池拖垮。
+ * 判据是「最近一次真实状态变更」而不是心跳本身——否则 sync 自己会把时间戳续上。 */
+const IDLE_LOBBY_MS = 5 * 60 * 1000;  // 大厅房（没人开局）空闲多久回收
+const IDLE_GAME_MS = 30 * 60 * 1000;  // 对局房无人操作多久回收（比大厅宽松，避免误杀长局）
+const NOBODY_GRACE_MS = 3 * 60 * 1000; // 全员断线后的宽限期（给重连留时间，> 座位保留期 60s）
 const TURN_TIMEOUT_MS = Math.max(10, Number(process.env.TURN_TIMEOUT_SECONDS) || 40) * 1000;
 const DEBUG_TOOLS = !!process.env.TOY_DEBUG;   // 调试通道总开关；不开时 debug-* 消息一律忽略
 const DEBUG_PASSWORD = process.env.TOY_DEBUG_PASSWORD || '';   // 不设密码 = 调试通道保持禁用
@@ -65,6 +74,9 @@ function genCode() {
 // ── 广播 ────────────────────────────────────────────────────────────────
 
 function roomInfo(room) {
+  // 真实状态变更（建房/进房/开局/出牌/离场都会走到这里）→ 记为「活着」。
+  // autoPlay 的超时代打只走 broadcastEvents，不刷新它，所以空转房会被正常回收。
+  room.lastActiveAt = Date.now();
   const online = room.players.filter((p) => p.ws && !p.left).length;
   room.players.forEach((p, i) => send(p.ws, {
     type: 'room',
@@ -211,7 +223,7 @@ function resume(ws, player) {
 // ── 房间生命周期 ────────────────────────────────────────────────────────
 
 function createRoom(code, player) {
-  const room = { code, players: [], game: null, registered: false };
+  const room = { code, players: [], game: null, registered: false, lastActiveAt: Date.now() };
   rooms.set(code, room);
   const seat = { ws: null, playerId: player.id, name: player.nickname, token: player.token, offlineAt: 0, timer: null };
   room.players.push(seat);
@@ -649,10 +661,34 @@ function startPolling() {
 }
 
 // ── 心跳：刷新 API 侧房间的 LastSeenAt ───────────────────────────────────
+// 顺便回收空闲房间：没有真人活动（roomInfo 未刷新 lastActiveAt）超过阈值就拆掉，
+// 不再为它续命。teardown 会顺带 DELETE 掉 API 侧记录，所以不会再有 404→重新登记的
+// 自我续命循环，rooms 与 API 两侧的房间数都会自然收敛。
+
+function isIdle(room, now) {
+  const idleMs = now - (room.lastActiveAt || 0);
+  const hasLive = room.players.some((p) => p.ws && !p.left);
+  // 两层判据，避免误杀也避免僵尸房：
+  //  1) 完全没人连着（玩家关页面/断网）→ 阈值给到 3 分钟，比座位保留期宽松，
+  //     让短暂断网的人有时间重连回来（重连会走 roomInfo 刷新 lastActiveAt）；
+  //  2) 还有人连着但长期没有任何状态变更（挂机发呆）→ 用更长的阈值回收。
+  // 有连接的情况不能一提就拆，否则正常加载中的玩家会被踢；但也不能永不拆，
+  // 否则挂机房会一直吃心跳 sync，就是这个 bug 的原始形态。
+  const noOne = !hasLive && idleMs > NOBODY_GRACE_MS;
+  const stale = idleMs > (room.game ? IDLE_GAME_MS : IDLE_LOBBY_MS);
+  return noOne || stale;
+}
 
 const heartbeat = setInterval(() => {
   if (!api.enabled()) return;
-  rooms.forEach((room) => syncRoom(room));
+  const now = Date.now();
+  rooms.forEach((room) => {
+    if (isIdle(room, now)) {
+      console.log(`[room ${room.code}] 空闲 ${Math.round((now - (room.lastActiveAt || now)) / 1000)}s，回收`);
+      return teardown(room);
+    }
+    syncRoom(room);
+  });
 }, HEARTBEAT_MS);
 heartbeat.unref();
 
