@@ -99,7 +99,12 @@ const cases = [
   }],
   ['余弹计数按公开信息推算', {}, async () => {
     global.window = { BR: {} };
-    return ammoText({ spent: [true, false], loadLive: 3, loadBlank: 2, left: 3 }) === '剩余|3|实|2|空|1';
+    // 视图里的 loadLive / loadBlank 已由 director 对平过，绘制层只照画不做减法
+    return ammoText({ left: 3, loadLive: 2, loadBlank: 1 }) === '剩余|3|实|2|空|1';
+  }],
+  ['余弹计数不会画出负数', {}, async () => {
+    global.window = { BR: {} };
+    return ammoText({ left: 0, loadLive: -1, loadBlank: undefined }) === '剩余|0|实|0|空|0';
   }]
 ];
 

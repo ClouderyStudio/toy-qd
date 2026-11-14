@@ -70,14 +70,15 @@
     g.text(txt, 314, 132, { align: 'right', size: 6, col: '#ffe080' });
   };
 
-  // 子弹自动计数（三连解锁）：只用公开信息推算 —— 本次装弹数减去已打出的弹种，
-  // 不读取真实弹序，联机与单机都不会泄露枪膛顺序。
+  // 子弹自动计数（三连解锁）：只用公开信息推算 —— 本次装弹的实/空数减去已打出的弹种，
+  // 被逆转器翻过的那发两边都不算。不读取真实弹序，联机与单机都不会泄露枪膛顺序。
+  // 数字以 director 对平的视图为准（见 director.syncAmmo），这里只负责画，不再做减法。
   // 顶部留 14px 给维护公告横幅，所以从 y=16 起画。
   D.ammo = function (v) {
-    const spent = v.spent || [];
-    const live = Math.max(0, (v.loadLive || 0) - spent.filter(Boolean).length);
-    const blank = Math.max(0, (v.loadBlank || 0) - spent.filter((x) => !x).length);
-    const left = Math.max(0, v.left || 0);
+    const clamp = (n) => Math.max(0, Number(n) || 0);
+    const live = clamp(v.loadLive);
+    const blank = clamp(v.loadBlank);
+    const left = clamp(v.left);
     g.rect(2, 16, 60, 30, '#1a1d17');
     g.rect(3, 17, 58, 28, '#0a140a');
     g.text('剩余', 7, 20, { size: 5, col: '#6a8a6a' });

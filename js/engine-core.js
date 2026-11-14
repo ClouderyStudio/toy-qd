@@ -38,6 +38,15 @@
     return [live, total - live];
   }
 
+  /* 一发子弹 = 一个槽位 { live:bool, no:装弹序号 }。
+   *
+   * 为什么要记装弹序号：逆转器翻转的是「此刻膛口那发」。翻了以后，这一发就不再属于
+   * 本次装弹的实/空统计了 —— 拿它去减就会把剩余实弹算成负数（玩家反馈的
+   * 「逆转器子弹计数错」）。所以计数只数「本次装弹、没被翻过的槽位」，
+   * 而客户端重放事件时会跟着事件里的翻转标记更新同一个 no，两边口径始终一致。 */
+  const slot = (live, no) => ({ live: !!live, no: no || 0 });
+  BR.slot = slot;
+
   class Game {
     constructor(mode, names) {
       this.mode = mode;                       // 'story' | 'don' | 'mp'
@@ -48,13 +57,27 @@
       }));
       this.stage = 0; this.phase = 'idle'; this.turn = 0; this.dir = 1;
       this.shells = []; this.idx = 0; this.sawed = false; this.spent = [];
-      this.known = []; this.loadNo = 0; this.loadLive = 0; this.loadBlank = 0;
+      this.known = []; this.loadNo = 0;
       this.round = 1; this.doors = 0; this.penalty = 0; this.wins = 0;
       this.result = null; this.ev = [];
     }
     emit(e) { this.ev.push(e); }
     flush() { const e = this.ev; this.ev = []; return e; }
     fail(msg) { this.ev = []; throw new Error(msg); }
+
+    /* 本次装弹还剩多少实弹 / 空弹：只数「还没打出、且仍是本次装弹」的槽位。
+     * 被逆转器翻过的那发 no 已清零，两边都不算 —— 它的最终类型由下一次翻转决定，
+     * 替玩家预设成实弹或空弹都会骗人。所以：
+     *   loadLive + loadBlank + （被翻过的发数）= 剩余发数
+     * 面板照此显示，就不会出现「实 + 空 > 剩余」这种一眼假的数字。 */
+    liveBlank() {
+      const rest = this.shells.slice(this.idx);
+      const no = this.loadNo;
+      return {
+        live: rest.filter((s) => s.live && s.no === no).length,
+        blank: rest.filter((s) => !s.live && s.no === no).length
+      };
+    }
 
     start() { this.startStage(1); return this.flush(); }
 
@@ -74,10 +97,11 @@
     newLoad() {
       const [l, b] = this.plan.loads[this.loadNo] || randomLoad();
       this.loadNo++;
-      this.shells = shuffle(Array(l).fill(true).concat(Array(b).fill(false)));
+      // 槽位带上「第几次装弹」的记号，逆转器翻转后会把它清掉（见 engine-items 的 inverter）
+      const no = this.loadNo;
+      this.shells = shuffle(Array(l).fill(true).concat(Array(b).fill(false))).map((live) => slot(live, no));
       this.idx = 0; this.sawed = false; this.spent = [];
       this.known = this.seats.map(() => ({}));
-      this.loadLive = l; this.loadBlank = b;
       this.seats.forEach((s) => { s.cuffed = false; s.cuffLock = false; });
       this.emit({ t: 'load', live: l, blank: b });
       if (this.plan.items) this.deal(this.plan.items);

@@ -13,6 +13,27 @@
     }
     push(events, view) { this.q.push(...events); this.latest = view; }
     idle() { return !this.q.length && this.wait <= 0; }
+
+    /* 子弹计数对平。
+     * 逆转器会把膛口那发翻成「既不算实弹也不算空弹」的临时子弹，
+     * 客户端还按「装弹数 − 已打出」硬减就会算出负数（玩家反馈的计数错乱）。
+     * 所以有新视图时一律以服务端数字为准；纯本地推演时退化成估算并夹到 >= 0。 */
+    syncAmmo(latest) {
+      const v = this.v;
+      if (!v) return;
+      const src = latest || null;
+      if (src && src.loadLive !== undefined && src.loadBlank !== undefined) {
+        v.loadLive = src.loadLive;
+        v.loadBlank = src.loadBlank;
+        if (src.left !== undefined) v.left = src.left;
+        return;
+      }
+      if (!this.lb) return;
+      const spent = v.spent || [];
+      const flipped = this.lb.flipped || 0;
+      v.loadLive = Math.max(0, this.lb.live - spent.filter(Boolean).length);
+      v.loadBlank = Math.max(0, this.lb.blank - spent.filter((x) => !x).length - flipped);
+    }
     say(s, t) { this.sub = s; this.subT = t || 2; }
     name(i) {
       if (i === this.me) return '你';
@@ -30,7 +51,11 @@
         this.wait = h ? (h.call(this, e) || 0) : 0;
         return;
       }
-      if (this.latest) { this.v = clone(this.latest); this.latest = null; this.reveal = null; }
+      if (this.latest) {
+        const latest = this.latest;
+        this.v = clone(latest); this.latest = null; this.reveal = null;
+        this.syncAmmo(latest);
+      }
       // 队列跑空即把枪收回桌面。朝自己开空弹会保留回合，引擎不会再发 turn 事件，
       // 若停在这里，枪会一直画成「枪口对着自己」，而绘制层只在 gun==='table' 时
       // 注册「拿起霰弹枪」热区 —— 玩家就再也点不动，界面却仍旧显示「你的回合」。
@@ -71,9 +96,12 @@
       return 1.6;
     },
     load(e) {
+      // 只记「这一装弹有几实几空」，不再本地累加：翻转与消耗都以服务端视图为准
+      // （见下方 syncAmmo），各客户端各算一套必然越走越偏。
+      this.lb = { live: e.live, blank: e.blank, flipped: 0 };
       const arr = Array(e.live).fill(true).concat(Array(e.blank).fill(false));
       this.reveal = arr;
-      this.v.left = e.live + e.blank; this.v.loadLive = e.live; this.v.loadBlank = e.blank;
+      this.v.left = e.live + e.blank;
       this.v.spent = []; this.v.known = {}; this.v.sawed = false;
       this.v.seats.forEach((s) => { s.cuffed = false; s.cuffLock = false; });
       this.say(`${e.live} 发实弹，${e.blank} 发空弹。`, 2.6);
@@ -124,6 +152,7 @@
         this.say('咔哒。空弹。', 1.4);
       }
       this.v.left--; this.v.spent.push(e.live); this.v.sawed = false;
+      this.syncAmmo();
       const k = {};
       Object.keys(this.v.known).forEach((o) => { if (+o > 0) k[+o - 1] = this.v.known[o]; });
       this.v.known = k;
@@ -164,19 +193,17 @@
       if (e.item === 'burnerphone' && e.secret) this.v.known[e.secret.off] = e.secret.live;
       if (e.item === 'beer') {
         this.v.left--; this.v.spent.push(e.live);
+        this.syncAmmo();
         const k = {};
         Object.keys(this.v.known).forEach((o) => { if (+o > 0) k[+o - 1] = this.v.known[o]; });
         this.v.known = k;
       }
       if (e.item === 'handsaw') this.v.sawed = true;
       if (e.item === 'inverter') {
-        // 逆转器只翻转当前这 1 发，装弹统计按 +1/-1 调整。
-        // 用事件里的 flipped 判断翻成了什么，避免在没有旧值的情况下瞎猜。
+        // 逆转器翻的是膛口那发：本次装弹的实/空账里它已经两边都不算了。
+        // 这里只跟着事件微调，真正的数字以 syncAmmo 用服务端视图对平为准。
         if (0 in this.v.known) this.v.known[0] = e.flipped !== undefined ? e.flipped : !this.v.known[0];
-        if (this.v.loadLive !== undefined && this.v.loadBlank !== undefined && e.flipped !== undefined) {
-          if (e.flipped) { this.v.loadLive++; this.v.loadBlank--; }
-          else { this.v.loadLive--; this.v.loadBlank++; }
-        }
+        if (this.lb && e.flipped !== undefined) this.lb.flipped++;
       }
       if (e.item === 'handcuffs') this.v.seats[e.target].cuffed = true;
       if (e.item === 'jammer') this.v.seats[e.target].jammed = true;

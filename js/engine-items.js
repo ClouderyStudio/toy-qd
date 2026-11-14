@@ -53,7 +53,7 @@
     const me = this.seats[seat];
     switch (key) {
       case 'magnifier': {
-        const live = this.shells[this.idx];
+        const live = this.shells[this.idx].live;
         this.known[seat][this.idx] = live;
         this.emit({ t: 'item', seat, item: key, to: seat, secret: live });
         break;
@@ -64,10 +64,10 @@
         this.heal(seat, 1);
         break;
       case 'beer': {
-        const live = this.shells[this.idx];
-        this.idx++; this.spent.push(live);
+        const s = this.shells[this.idx];
+        this.idx++; this.spent.push(s.live);
         me.st.ejected++; me.st.beer++;
-        this.emit({ t: 'item', seat, item: key, live });
+        this.emit({ t: 'item', seat, item: key, live: s.live });
         if (this.idx >= this.shells.length) return this.endAction(seat, true);
         break;
       }
@@ -83,22 +83,20 @@
         const rest = this.shells.length - this.idx;
         if (rest < 2) { this.emit({ t: 'item', seat, item: key, to: seat, secret: null }); break; }
         const off = BR.ri(1, rest - 1);
-        const live = this.shells[this.idx + off];
+        const live = this.shells[this.idx + off].live;
         this.known[seat][this.idx + off] = live;
         this.emit({ t: 'item', seat, item: key, to: seat, secret: { off, live } });
         break;
       }
       case 'inverter': {
-        // 翻转当前这发。装弹时的实/空统计必须跟着改，
-        // 否则"剩余实弹/空弹"（子弹自动计数）用的还是旧账，数字会越算越偏。
-        const wasLive = this.shells[this.idx];
-        this.shells[this.idx] = !wasLive;
-        this.known.forEach((k) => { if (this.idx in k) k[this.idx] = !k[this.idx]; });
-        if (this.loadLive !== undefined && this.loadBlank !== undefined) {
-          if (wasLive) { this.loadLive--; this.loadBlank++; }
-          else { this.loadLive++; this.loadBlank--; }
-        }
-        this.emit({ t: 'item', seat, item: key, flipped: this.shells[this.idx] });
+        // 只翻转膛口这一发。翻完把它移出「本次装弹」的统计（no 清零），
+        // 否则剩余实弹/空弹会按装弹时的旧账去减，数字越算越偏（见 liveBlank）。
+        // 事件带上 flipped 与 no，客户端重放时改的是同一个槽位，联机各端计数才一致。
+        const s = this.shells[this.idx];
+        s.live = !s.live;
+        s.no = 0;                       // 已不属于本次装弹
+        this.known.forEach((k) => { if (this.idx in k) k[this.idx] = s.live; });
+        this.emit({ t: 'item', seat, item: key, flipped: s.live, at: this.idx });
         break;
       }
       case 'medicine': {

@@ -100,7 +100,8 @@ function ok(cond, name, extra) {
   const g = new BR.Game('mp', ['A', 'B']);
   g.startStage(1);
   g.turn = 0;
-  g.shells = [false, false, false, false];
+  // 子弹是槽位对象（{live,no}），别直接塞布尔值，否则引擎读 .live 会拿到 undefined
+  g.shells = [false, false, false, false].map((live) => BR.slot(live, g.loadNo));
   g.idx = 0;
   let okCount = 0;
   for (let i = 0; i < 2; i++) {

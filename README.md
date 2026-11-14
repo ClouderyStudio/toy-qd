@@ -31,6 +31,7 @@ TOY_API_BASE=https://api.cldery.com TOY_SERVER_KEY=<与服务端 Toy:ServerKey �
 - **11 种道具**：放大镜、香烟、啤酒、手锯、手铐、肾上腺素、一次性手机、逆转器、过期药、干扰器、遥控器。
 - **彩蛋「上帝签名」**：还原原作里掏道具时偶尔摸到的那张 GENERAL RELEASE OF LIABILITY。发道具时每座位约 0.5% 概率把其中一件替换成它，使用后在桌面浮现署名为 GOD 的免责声明。不进道具池、不改变道具总数，因此不影响平衡。
 - **子弹自动计数（三连解锁）**：对作者视频点赞 + 投币 + 收藏后，对局中常驻显示剩余实弹 / 空弹数量；只按公开信息（装弹数 − 已打出弹种）推算，不读取真实弹序。视频 BV 号在 `js/config.js` 的 `bulletVideo` 配置，解锁状态存云存档。
+  逆转器翻过的那发**实/空两边都不算**（它的最终类型由下一次翻转决定，替玩家预设会骗人），所以面板满足「实 + 空 + 已翻转 = 剩余发数」。
 - **Toy SDK 接入**：云存储（本地兜底）、排行榜（故事奖金 / DoN 奖金 / 多人胜场）、横屏沉浸、昵称安全检测；`toyOpenId` 用于联机身份。
 - **像素风画面**：320×180 低分辨率最近邻放大，Bayer 抖动背景，WebAudio 合成音效。
 
@@ -66,10 +67,33 @@ backend/
   rooms.js            房间管理、权威引擎、断线保留与重连
   api.js              ClouderyApi 客户端（身份 / 房间登记 / 快速匹配）
   tools/              联机自测脚本（房间号、降级、座位超时）
-  package.json
 docs/backend-api.md   后端协议文档
-tools/build-static.sh 生成 dist/ 发布包（只含浏览器需要的静态文件）
+tools/build-static.js 生成 dist/ 发布包（只含浏览器需要的静态文件）
 ```
+
+## 自测
+
+纯逻辑套件不需要起服务，直接跑：
+
+```bash
+node tools/ammo-invariant-selftest.js   # 面板「实 + 空 + 已翻转 = 剩余」不变式
+node tools/ammo-e2e-selftest.js         # 引擎 + Director + 绘制层联测（默认跑 dist/，验玩家看到的数字）
+node tools/inverter-selftest.js         # 逆转器计数、联机双端一致、庄家 AI 用道具的决策
+node backend/tools/director-selftest.js # 回合不会死锁
+node tools/bullet-gate-selftest.js      # 三连解锁
+node tools/godsign-selftest.js          # 上帝签名彩蛋
+node tools/mp-seat-selftest.js          # 座位与回合
+```
+
+联机套件要先起后端（各脚本头部注释里有对应的端口与环境变量）：
+
+```bash
+PORT=8081 node backend/server.js        # 另开一个进程
+node backend/tools/mp-selftest.js ws://127.0.0.1:8081
+```
+
+快速匹配那一条需要配 `TOY_API_BASE`，没接 ClouderyApi 时会按设计降级为「请用房间号开房」。
+
 
 ## 部署
 

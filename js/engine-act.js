@@ -26,7 +26,7 @@
 
   G.shoot = function (seat, target) {
     if (!this.validSeat(target)) this.fail('目标无效');
-    const live = this.shells[this.idx];
+    const live = this.shells[this.idx].live;
     const dmg = live ? (this.sawed ? 2 : 1) : 0;
     this.idx++; this.sawed = false; this.spent.push(live);
     this.seats[seat].st.shots++;
@@ -73,10 +73,13 @@
     const known = {};
     const k = this.known[seat] || {};
     Object.keys(k).forEach((i) => { if (+i >= this.idx) known[+i - this.idx] = k[i]; });
+    const lb = this.liveBlank();
     return {
       you: seat, mode: this.mode, stage: this.stage, round: this.round, phase: this.phase,
       turn: this.turn, dir: this.dir, sawed: this.sawed, wires: !!(this.plan && this.plan.wires),
-      left: this.shells.length - this.idx, loadLive: this.loadLive, loadBlank: this.loadBlank,
+      left: this.shells.length - this.idx, loadLive: lb.live, loadBlank: lb.blank,
+      // 本次装弹还没被逆转器翻过的发数：用它 + loadLive/loadBlank 才能对平剩下的子弹
+      loadNo: this.loadNo,
       spent: this.spent.slice(), known,
       seats: this.seats.map((s) => ({
         name: s.name, hp: s.hp, maxHp: s.maxHp, items: s.items.slice(), alive: s.alive,

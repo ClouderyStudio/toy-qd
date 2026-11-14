@@ -39,14 +39,15 @@ function settle(dir, limit = 30) {
 
 /* ---------- 1) 朝自己开空弹：回合保留，枪必须回到桌面 ---------- */
 {
-  // 第一关装弹是 1 实 2 空，先找一副「第 1 发是空弹」的牌，第一枪就能打出这个分支
+  // 第一关装弹是 1 实 2 空，先找一副「第 1 发是空弹」的牌，第一枪就能打出这个分支。
+  // 子弹是槽位对象（{live,no}，no 记「第几次装弹」，逆转器翻转后清零），所以看 .live。
   let game;
   for (let i = 0; i < 200; i++) {
     game = new BR.Game('story', ['你', 'DEALER']);
     game.start();
-    if (game.shells[0] === false) break;
+    if (game.shells[0].live === false) break;
   }
-  ok(game.shells[0] === false, '构造成功：第 1 发是空弹');
+  ok(game.shells[0].live === false, '构造成功：第 1 发是空弹');
   ok(game.phase === 'turn' && game.turn === 0, `构造成功：轮到我（phase=${game.phase} turn=${game.turn}）`);
 
   const dir = new BR.Director(game.getView(0), 0);
